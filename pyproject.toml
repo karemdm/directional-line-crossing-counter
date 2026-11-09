@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "directional-line-crossing-counter"
+version = "0.1.0"
+description = "Count people and vehicles crossing user-drawn lines in a video, by direction (YOLO + BoT-SORT)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "AGPL-3.0-only" }
+authors = [{ name = "Karem Daiane Marcomini" }]
+keywords = ["computer-vision", "yolo", "object-tracking", "line-crossing", "people-counting", "opencv"]
+dependencies = [
+    "ultralytics>=8.1.0",
+    "opencv-python>=4.8",
+    "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+line-counter = "line_counter.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
