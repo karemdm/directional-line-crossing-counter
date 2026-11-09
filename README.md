@@ -25,10 +25,20 @@ command-line interface are both included.
 
 ## How it works
 
-```
-frame -> YOLO detect -> BoT-SORT track -> [face blur] -> bottom-center anchor
-      -> segment prev->curr vs each line (CCW test) -> side sign -> IN / OUT
-      -> draw boxes + lines + HUD -> write <name>_proc.mp4
+```mermaid
+flowchart TD
+    A["Video frame"] --> B["YOLO detection<br/>(conf, imgsz, classes)"]
+    B --> C["BoT-SORT tracking<br/>(persistent IDs)"]
+    C --> D{"Face blur<br/>enabled?"}
+    D -- yes --> E["Blur faces inside<br/>person boxes"]
+    D -- no --> F
+    E --> F["Anchor = bottom-center<br/>segment prev → curr"]
+    F --> G{"Strict segment<br/>intersection with a line?"}
+    G -- no --> J
+    G -- yes --> H["Side test (cross product)<br/>→ IN / OUT"]
+    H --> I["Count once per ID per line"]
+    I --> J["Draw boxes, lines, HUD"]
+    J --> K["Write frame to &lt;name&gt;_proc.mp4<br/>+ live preview"]
 ```
 
 - **Crossing:** the trajectory segment from the previous to the current anchor must intersect the drawn segment (counter-clockwise orientation test).
