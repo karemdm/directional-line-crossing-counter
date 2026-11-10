@@ -12,10 +12,13 @@ Coordinates are pixels in the original video resolution.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import List, Union
 
 from line_counter.counter import CountingLine
+
+logger = logging.getLogger(__name__)
 
 PathLike = Union[str, Path]
 
@@ -43,16 +46,27 @@ def lines_from_data(data: list) -> List[CountingLine]:
         The counting lines.
 
     Raises:
-        ValueError: If an entry does not have exactly two 2D points.
+        ValueError: If the data is not a list of objects, or an entry does not
+            have exactly two numeric ``[x, y]`` points.
     """
+    if not isinstance(data, list):
+        raise ValueError("Lines file must contain a JSON list of line objects")
     lines: List[CountingLine] = []
     for i, item in enumerate(data, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Line entry {i} must be an object with a 'points' key")
         points = item.get("points", [])
-        if len(points) != 2 or any(len(p) != 2 for p in points):
+        if (not isinstance(points, (list, tuple)) or len(points) != 2
+                or any(not isinstance(p, (list, tuple)) or len(p) != 2 for p in points)):
             raise ValueError(f"Line entry {i} must have exactly two [x, y] points")
-        (x1, y1), (x2, y2) = points
+        try:
+            (x1, y1), (x2, y2) = ((int(x), int(y)) for x, y in points)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Line entry {i} has non-numeric coordinates") from exc
         name = str(item.get("name", f"Line_{i}"))
-        lines.append(CountingLine(name, (int(x1), int(y1)), (int(x2), int(y2))))
+        if (x1, y1) == (x2, y2):
+            logger.warning("%s has two identical points; it can never be crossed", name)
+        lines.append(CountingLine(name, (x1, y1), (x2, y2)))
     return lines
 
 
@@ -65,7 +79,7 @@ def load_lines(path: PathLike) -> List[CountingLine]:
     Returns:
         The counting lines.
     """
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, "r", encoding="utf-8-sig") as fh:  # tolerate a UTF-8 BOM (Windows editors)
         return lines_from_data(json.load(fh))
 
 
@@ -74,7 +88,8 @@ def save_lines(lines: List[CountingLine], path: PathLike) -> None:
 
     Args:
         lines: Counting lines.
-        path: Destination JSON file path.
+        path: Destination JSON file path (parent folders are created).
     """
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(lines_to_data(lines), fh, indent=2)

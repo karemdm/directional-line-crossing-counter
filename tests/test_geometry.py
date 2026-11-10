@@ -37,7 +37,14 @@ def test_parallel_and_collinear_segments() -> None:
 def test_touching_without_crossing() -> None:
     assert not segments_intersect(A, B, (-5, -5), (0, 0))  # ends on the line endpoint
     assert not segments_intersect(A, B, (5, -5), (5, 0))   # ends on the line
-    assert not segments_intersect(A, B, (5, 0), (5, -5))   # starts on the line, leaves
+    assert not segments_intersect(A, B, (5, 0), (5, -5))   # starts on the line, leaves upward
+
+
+def test_on_line_points_are_grouped_with_the_negative_side() -> None:
+    # The strict CCW test treats a point exactly on the line like the negative
+    # side, so these steps between "on the line" and the positive side count.
+    assert segments_intersect(A, B, (5, 0), (5, 5))   # starts on the line, moves to positive
+    assert segments_intersect(A, B, (5, 5), (5, 0))   # ends on the line, from positive
 
 
 def test_side_of_line_sign() -> None:
@@ -50,3 +57,9 @@ def test_side_of_line_sign() -> None:
 def test_direction_flips_with_line_orientation() -> None:
     p = (5, 5)
     assert side_of_line(A, B, p) == -side_of_line(B, A, p)
+
+
+def test_endpoint_touching_is_asymmetric() -> None:
+    # Documented edge case of the strict CCW test at a line endpoint.
+    assert segments_intersect(A, B, (5, 5), (0, 0))       # positive side -> endpoint
+    assert not segments_intersect(A, B, (0, 0), (5, 5))   # endpoint -> positive side

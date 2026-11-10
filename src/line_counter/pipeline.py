@@ -55,20 +55,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     """
     from ultralytics import YOLO
 
-    cap = cv2.VideoCapture(str(input_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"Cannot open video: {input_path}")
-    fps = cap.get(cv2.CAP_PROP_FPS) or FALLBACK_FPS
-    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-    if not out.isOpened():
-        cap.release()
-        raise RuntimeError(f"Cannot open video writer: {output_path}")
-
+    # Load the models first, so a bad weights path does not leave an open
+    # capture or an empty output file behind.
     logger.info("Loading detector %s", config.model)
     model = YOLO(config.model)
     blurrer = None
@@ -76,6 +64,25 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
         from line_counter.privacy import FaceBlurrer
 
         blurrer = FaceBlurrer(config.face_model, config.face_conf, config.blur_kernel, config.blur_sigma)
+
+    cap = cv2.VideoCapture(str(input_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Cannot open video: {input_path}")
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    if not (fps and fps > 0):  # 0, negative or NaN from some containers
+        fps = FALLBACK_FPS
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if w <= 0 or h <= 0:
+        cap.release()
+        raise RuntimeError(f"Cannot read the frame size of: {input_path}")
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    if not out.isOpened():
+        cap.release()
+        raise RuntimeError(f"Cannot open video writer: {output_path}")
 
     class_order = [config.class_name(c, model.names) for c in config.classes]
     fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2) for ln in lines]  # start from zero
@@ -101,16 +108,19 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
                 tracker=config.tracker,
             )
             boxes = results[0].boxes if results else None
-            if boxes is not None and boxes.id is not None:
+            if boxes is not None and len(boxes):
                 xyxy = boxes.xyxy.cpu().numpy().astype(int)
-                ids = boxes.id.cpu().numpy().astype(int)
                 cls_ids = boxes.cls.cpu().numpy().astype(int)
 
-                if blurrer is not None:  # blur before drawing so overlays stay sharp
-                    for box, cls_id in zip(xyxy, cls_ids):
-                        if cls_id == PERSON_CLASS_ID:
-                            blurrer.blur_in_box(frame, box)
+                # Blur before drawing so overlays stay sharp. This also covers
+                # frames where the tracker returns detections without IDs.
+                if blurrer is not None:
+                    person_boxes = xyxy[cls_ids == PERSON_CLASS_ID]
+                    if len(person_boxes):
+                        blurrer.blur_in_boxes(frame, person_boxes)
 
+            if boxes is not None and len(boxes) and boxes.id is not None:
+                ids = boxes.id.cpu().numpy().astype(int)
                 for box, track_id, cls_id in zip(xyxy, ids, cls_ids):
                     x1, y1, x2, y2 = (int(v) for v in box)
                     cls_name = config.class_name(int(cls_id), model.names)
@@ -122,6 +132,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
 
             draw_counting_lines(frame, counter.lines)
             draw_hud(frame, counter.lines, class_order)
+            if frame.shape[1] != w or frame.shape[0] != h:  # writer silently drops mismatched frames
+                frame = cv2.resize(frame, (w, h))
             out.write(frame)
 
             if total > 0 and frame_idx % 100 == 0:

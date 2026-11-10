@@ -66,7 +66,11 @@ class _LineEditor:
         scale_x, scale_y = orig_w / win_w, orig_h / win_h
 
         if event == cv2.EVENT_LBUTTONDOWN:
-            self.pending.append((int(x * scale_x), int(y * scale_y)))
+            point = (int(x * scale_x), int(y * scale_y))
+            if self.pending and self.pending[0] == point:
+                logger.info("Second point equals the first one; click a different point")
+            else:
+                self.pending.append(point)
             if len(self.pending) == 2:
                 name = f"Line_{len(self.lines) + 1}"
                 self.lines.append(CountingLine(name, self.pending[0], self.pending[1]))

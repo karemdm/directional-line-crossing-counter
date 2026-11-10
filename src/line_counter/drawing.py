@@ -87,9 +87,11 @@ def draw_hud(img: np.ndarray, lines: Sequence[CountingLine], class_order: Iterab
     """
     order = list(class_order)
     panel_height = 30 + len(lines) * 25
-    overlay = img.copy()
-    cv2.rectangle(overlay, (10, 10), (550, panel_height), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.6, img, 0.4, 0, img)
+    # Same result as blending a black rectangle at 60% opacity, but only the
+    # panel region is touched instead of copying the whole frame every time.
+    panel = img[10:panel_height + 1, 10:551]
+    if panel.size:
+        img[10:panel_height + 1, 10:551] = cv2.addWeighted(panel, 0.4, panel, 0.0, 0)
 
     text_y = 30
     for line in lines:

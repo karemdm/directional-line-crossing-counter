@@ -88,3 +88,41 @@ def test_lines_from_data_defaults_and_validation() -> None:
         pass
     else:
         raise AssertionError("expected ValueError for a one-point line")
+
+
+def test_step_starting_on_the_line_uses_the_side_it_moves_to() -> None:
+    # negative -> exactly on the line -> positive is a net IN movement.
+    counter = LineCounter([_horizontal()])
+    counter.update(1, "Person", (5, -5))
+    assert counter.update(1, "Person", (5, 0)) == []        # touching only: not yet counted
+    assert counter.update(1, "Person", (5, 5)) == [("Line_1", IN)]
+    # positive -> exactly on the line is counted as OUT when it reaches the line.
+    counter.update(2, "Person", (6, 5))
+    assert counter.update(2, "Person", (6, 0)) == [("Line_1", OUT)]
+    assert counter.update(2, "Person", (6, -5)) == []       # already counted
+
+
+def test_lines_from_data_rejects_malformed_input() -> None:
+    bad_inputs = [
+        {"points": [[0, 0], [1, 1]]},          # top level is not a list
+        [[[0, 0], [1, 1]]],                    # entry is not an object
+        [{"points": [[0, 0], [1, "a"]]}],      # non-numeric coordinate
+        [{"points": [[0, 0], [1, 1], [2, 2]]}],  # three points
+    ]
+    for data in bad_inputs:
+        try:
+            lines_from_data(data)
+        except ValueError:
+            continue
+        raise AssertionError(f"expected ValueError for {data!r}")
+
+
+def test_load_lines_accepts_utf8_bom_and_save_creates_folders() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        bom_path = os.path.join(tmp, "bom.json")
+        with open(bom_path, "w", encoding="utf-8-sig") as fh:
+            json.dump([{"name": "A", "points": [[0, 0], [5, 5]]}], fh)
+        assert load_lines(bom_path)[0].p2 == (5, 5)
+        nested = os.path.join(tmp, "sub", "dir", "lines.json")
+        save_lines([_horizontal()], nested)
+        assert load_lines(nested)[0].name == "Line_1"

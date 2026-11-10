@@ -34,8 +34,11 @@ class CountingLine:
 
         A crossing is counted when the segment ``prev -> curr`` intersects the
         line and the track has not been counted on this line before. The
-        direction is IN when the point moves from the negative side to the
-        positive side of ``p1 -> p2``; every other crossing is OUT.
+        direction is IN when the point ends on the positive side of
+        ``p1 -> p2`` (it came from the negative side or from the line itself)
+        and OUT otherwise. For any step that strictly crosses the line this is
+        the same as "negative -> positive is IN"; it also keeps a step that
+        starts exactly on the line consistent with the side it moves to.
 
         Args:
             track_id: Tracker ID of the object.
@@ -50,9 +53,9 @@ class CountingLine:
             return None
         if not segments_intersect(self.p1, self.p2, prev, curr):
             return None
-        prev_side = side_of_line(self.p1, self.p2, prev)
-        curr_side = side_of_line(self.p1, self.p2, curr)
-        direction = IN if (prev_side < 0 and curr_side > 0) else OUT
+        # segments_intersect() only accepts steps where exactly one endpoint is
+        # strictly on the positive side, so the sign of curr decides.
+        direction = IN if side_of_line(self.p1, self.p2, curr) > 0 else OUT
         bucket = self.counts.setdefault(cls_name, {IN: 0, OUT: 0})
         bucket[direction] += 1
         self.counted_ids.add(track_id)

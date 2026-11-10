@@ -9,7 +9,6 @@ The annotated video is written to disk frame by frame. A Tkinter launcher and a
 command-line interface are both included.
 
 ![demo](docs/assets/demo.gif)
-<!-- add a short demo GIF here -->
 
 ## Features
 
@@ -42,7 +41,7 @@ flowchart TD
 ```
 
 - **Crossing:** the trajectory segment from the previous to the current anchor must intersect the drawn segment (counter-clockwise orientation test).
-- **Direction:** IN when the anchor moves from the negative to the positive side of the directed line `P1 -> P2` (2D cross product); every other crossing is OUT. The click order of a line therefore defines which way is IN.
+- **Direction:** IN when the anchor moves from the negative to the positive side of the directed line `P1 -> P2` (2D cross product), OUT when it moves from the positive to the negative side. The click order of a line therefore defines which way is IN.
 - **Deduplication:** each line remembers the track IDs it has already counted.
 
 See [docs/how-it-works.md](docs/how-it-works.md) for the formulas, edge cases and tuning tips.
@@ -158,6 +157,8 @@ directional-line-crossing-counter/
   requirements.txt
   pyproject.toml
   docs/how-it-works.md
+  docs/assets/demo.gif
+  results/README.md  # example output video and source notes
   weights/README.md
   src/line_counter/
     __init__.py
@@ -184,7 +185,7 @@ Run the tests with `pytest` (they only need the standard library).
 - Counts depend entirely on detection and tracking quality. ID switches after occlusions can cause double counts; missed detections near a line can cause missed counts.
 - Each track ID is counted once per line: an object that crosses, returns and crosses again is counted only the first time.
 - The class of a count is the class detected in the crossing frame; class flicker (e.g. car/truck) can move counts between classes.
-- Anchors landing exactly on a line or its endpoint are resolved asymmetrically by the strict CCW test (see [docs](docs/how-it-works.md#edge-cases)).
+- An anchor landing exactly on a line is treated as being on the negative side by the strict CCW test, so the crossing is counted on the step that enters or leaves the positive side; exactly at a line endpoint the result is asymmetric (see [docs](docs/how-it-works.md#edge-cases)).
 - The HUD panel has a fixed width; many classes or long line names can overflow it.
 - No perspective correction: lines are drawn in image space.
 - Face blurring is optional and **best-effort**: faces the face detector misses, and faces outside detected person boxes, are not blurred. Do not rely on it as the only anonymisation measure; review the output before sharing it and follow the privacy rules that apply where the video was recorded.

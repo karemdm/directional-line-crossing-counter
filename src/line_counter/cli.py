@@ -95,6 +95,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.gui or not args.input:
         from line_counter.gui import run_gui
 
+        ignored = [opt for opt, val in (("--input", args.input), ("--output", args.output),
+                                        ("--lines", args.lines), ("--save-lines", args.save_lines))
+                   if val]
+        if ignored:
+            logger.warning("Ignored in GUI mode: %s", ", ".join(ignored))
+
         run_gui(config)
         return 0
 
@@ -102,7 +108,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     from line_counter.pipeline import default_output_path, process_video
 
     if args.lines:
-        lines = load_lines(args.lines)
+        try:
+            lines = load_lines(args.lines)
+        except (OSError, ValueError) as exc:  # missing file, invalid JSON or bad entries
+            logger.error("Cannot load lines from %s: %s", args.lines, exc)
+            return 1
     elif args.no_display:
         parser.error("--no-display needs --lines (lines cannot be drawn without a window)")
     else:

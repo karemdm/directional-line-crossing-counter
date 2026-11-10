@@ -79,9 +79,13 @@ Implemented in `line_counter.geometry.side_of_line`.
 
 ### 3. Direction rules
 
-- **IN**: the previous anchor is on the negative side and the current anchor is
-  on the positive side (`prev_side < 0 and curr_side > 0`).
-- **OUT**: every other confirmed crossing.
+- **IN**: the current anchor is on the positive side (`curr_side > 0`), i.e.
+  the anchor came from the negative side (or from exactly on the line).
+- **OUT**: the current anchor is not on the positive side (`curr_side <= 0`),
+  i.e. the anchor left the positive side.
+
+For a step that strictly crosses the line this is the same as "negative to
+positive is IN, positive to negative is OUT".
 
 So the meaning of IN/OUT depends on the order in which the two points of a
 line were clicked. Example: for a horizontal line drawn left to right, an
@@ -97,12 +101,19 @@ line, per class name, per direction.
 
 ### Edge cases
 
-- The CCW test is strict. When an anchor lands exactly on a line or exactly on
-  one of its endpoints, the result depends on which side the next or previous
-  point is on, and the outcome is not symmetric (for example, a step starting
-  exactly on the line and moving to the positive side counts as OUT, a step
-  moving to the negative side is not a crossing). With integer pixel anchors
-  this is uncommon but possible. This behaviour is kept from the prototype.
+- The CCW test is strict, so a point exactly on the line is grouped with the
+  negative side. With integer pixel anchors this is uncommon but possible:
+  - negative -> on the line: not a crossing yet; the following step
+    on the line -> positive is counted as IN;
+  - positive -> on the line: counted as OUT immediately; the following step
+    on the line -> negative is not a crossing.
+
+  Either way the object is counted once, in the direction of its overall
+  movement. A trajectory collinear with the line is never counted.
+- Exactly at an endpoint of the line the strict test stays asymmetric: a step
+  from the positive side that ends exactly on the endpoint is counted as OUT,
+  while a step that leaves the endpoint toward the positive side is not
+  counted. A trajectory that only grazes an endpoint is ambiguous anyway.
 - If the tracker loses an object and gives it a new ID, the object can be
   counted again.
 - The class used for a count is the class in the frame where the crossing
@@ -110,8 +121,9 @@ line, per class name, per direction.
 
 ## Optional face blurring
 
-With `--blur-faces`, every person box is cropped and passed to a separate YOLO
-face detector (confidence 0.3). Each detected face region is replaced by a
+With `--blur-faces`, every detected person box (with or without a track ID)
+is cropped and passed to a separate YOLO face detector (confidence 0.3); the
+crops of one frame are sent to the face model in batches of up to 16. Each detected face region is replaced by a
 Gaussian blur (kernel 51x51, sigma 30). Blurring happens before boxes and text
 are drawn. This is best-effort: faces the detector misses are not blurred, and
 faces outside detected person boxes are never searched.
