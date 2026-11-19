@@ -187,7 +187,7 @@ blur kernel `51x51`, blur sigma `30`.
 - `<name>_proc.mp4` (MP4V codec, same frame rate as the input; with the default `--layout side` the frame is the original plus a panel on the right) with:
   - corner-style boxes labelled `#<track id> <class>` and the bottom-center anchor point,
   - the counting lines, each in its own color, with a small semi-transparent badge near the line showing its name and totals, e.g. `Line_4  12 in / 8 out`,
-  - a side panel titled "Line counts" with one compact block per line (color swatch, name, then per-class counts such as `Person 12 in / 8 out   Car 3 in / 1 out`; only classes with a crossing are listed, otherwise `no crossings yet`). The font shrinks as needed so many lines fit, and the panel ends with the total persons in/out. With `--layout overlay` the counts are drawn over the video instead.
+  - a side panel titled "Line counts" with one compact block per line (color swatch, name, then per-class counts such as `Person 12 in / 8 out   Car 3 in / 1 out`; only classes with a crossing are listed, otherwise `no crossings yet`). The font shrinks as needed so many lines fit, and if they still do not fit, a dim `+N more lines` row is shown; the panel ends with the total in/out over all classes. Class names are shown exactly as the model names them. With `--layout overlay` the counts are drawn over the video instead.
 - Log messages for every counted crossing and a final per-line, per-class summary.
 - Optionally, a JSON lines file (`--save-lines`) and a tracks file (`--save-tracks`).
 

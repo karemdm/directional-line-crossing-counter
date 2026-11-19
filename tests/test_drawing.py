@@ -110,3 +110,72 @@ def test_track_labels_are_thin():
     img = np.zeros((1080, 1920, 3), dtype=np.uint8)
     draw_corner_box(img, (100, 100), (200, 300), (0, 255, 0), "#1 Person")
     assert (img[:, :, 1] > 0).sum() < 1500
+
+
+# --- generic layout: any classes, line counts and frame sizes -------------------
+
+LONG_CLASSES = [f"a_very_long_custom_class_name_number_{i}" for i in range(15)]
+
+
+def _generic_lines(n, classes):
+    lines = []
+    for i in range(n):
+        ln = CountingLine(name=f"Entrance_with_a_really_long_name_{i + 1}", p1=(20 + i, 20), p2=(60 + i, 200))
+        for c in classes:
+            ln.counts[c] = {IN: 100 + i, OUT: 7}
+        lines.append(ln)
+    return lines
+
+
+def _check_bounds(h, w, lines, classes):
+    frame = np.zeros((h, w, 3), dtype=np.uint8)
+    out = compose_frame(frame, lines, classes, "side")
+    pw = panel_width(h, w)
+    assert out.shape == (h, w + pw, 3)
+    panel = out[:, w:]
+    content = (panel != np.array(PANEL_BG, dtype=np.uint8)).any(axis=2)
+    assert content.any()
+    assert not content[:, -2:].any()  # nothing touching the right edge
+    return out
+
+
+def test_many_long_class_names_stay_in_panel():
+    _check_bounds(1080, 1920, _generic_lines(4, LONG_CLASSES), LONG_CLASSES)
+
+
+def test_30_lines_show_more_lines_note():
+    out = _check_bounds(1080, 1920, _generic_lines(30, CLASSES), CLASSES)
+    assert out.any()
+
+
+@pytest.mark.parametrize("h,w", [(360, 640), (1920, 1080), (2160, 3840), (240, 320)])
+def test_sizes_and_aspect_ratios(h, w):
+    out = _check_bounds(h, w, _generic_lines(12, CLASSES), CLASSES)
+    assert panel_width(h, w) <= max(200, round(0.4 * w))
+    assert out.shape[0] == h
+
+
+def test_overflow_note_when_blocks_do_not_fit(monkeypatch):
+    import line_counter.drawing as d
+    seen = []
+    orig = d.cv2.putText
+
+    def spy(img, text, *a, **k):
+        seen.append(text)
+        return orig(img, text, *a, **k)
+
+    monkeypatch.setattr(d.cv2, "putText", spy)
+    compose_frame(np.zeros((360, 640, 3), dtype=np.uint8), _generic_lines(30, CLASSES), CLASSES, "side")
+    assert any(t.startswith("+") and t.endswith("more lines") for t in seen)
+
+
+def test_class_names_are_drawn_as_given_and_extra_classes_shown(monkeypatch):
+    import line_counter.drawing as d
+    seen = []
+    orig = d.cv2.putText
+    monkeypatch.setattr(d.cv2, "putText", lambda img, text, *a, **k: (seen.append(text), orig(img, text, *a, **k))[1])
+    ln = CountingLine(name="L", p1=(5, 5), p2=(50, 50))
+    ln.counts["weird-Class_9"] = {IN: 1, OUT: 2}  # not in the class order
+    compose_frame(np.zeros((720, 1280, 3), dtype=np.uint8), [ln], [], "side")
+    assert any("weird-Class_9 1 in / 2 out" in t for t in seen)
+    assert any(t.startswith("Total: 1 in / 2 out") for t in seen)

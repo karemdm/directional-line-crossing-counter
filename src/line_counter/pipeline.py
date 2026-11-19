@@ -95,8 +95,11 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
         cap.release()
         raise RuntimeError(f"Cannot open video writer: {output_path}")
 
-    class_order = [config.class_name(c, model.names if model is not None else None)
-                   for c in config.classes]
+    if replay is not None:  # class names come from the saved tracks, ordered by class id
+        saved = {t["cls"]: t["name"] for ts in replay.values() for t in ts}
+        class_order = [saved[c] for c in sorted(saved)]
+    else:
+        class_order = [config.class_name(c, model.names) for c in config.classes]
     fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2,
                                 cooldown_frames=config.cooldown_frames,
                                 cooldown_px=config.cooldown_px) for ln in lines]  # start from zero

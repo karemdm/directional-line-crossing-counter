@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -108,8 +108,10 @@ def _draw_badge(img: np.ndarray, line: CountingLine, color: Color, k: float,
                 placed: List[Tuple[int, int, int, int]]) -> None:
     frame_h, frame_w = img.shape[:2]
     n_in, n_out = _totals(line)
-    text = f"{line.name}  {n_in} in / {n_out} out"
     scale, thick = 0.45 * k, 1
+    tail = f"  {n_in} in / {n_out} out"
+    name = _ellipsize(line.name, scale, thick, max(int(0.4 * frame_w) - _text_width(tail, scale, thick), 20))
+    text = name + tail
     (tw, th_), base = cv2.getTextSize(text, FONT, scale, thick)
     pad = round(4 * k)
     bw, bh = tw + 2 * pad, th_ + base + 2 * pad
@@ -239,21 +241,40 @@ PANEL_BG: Color = (28, 28, 28)
 DIM_COLOR: Color = (130, 130, 130)
 LAYOUT_SIDE = "side"
 LAYOUT_OVERLAY = "overlay"
+MIN_PANEL_W = 200
+MIN_FONT = 0.3  # absolute smallest panel font scale (still readable)
 
 
-def panel_width(frame_h: int) -> int:
-    """Width of the side panel for a frame of this height (400 px at 1080p)."""
-    return round(267 * max(frame_h / 720.0, 0.5))
+def panel_width(frame_h: int, frame_w: Optional[int] = None) -> int:
+    """Width of the side panel (400 px at 1080p), derived from the frame size.
+
+    Scales with the height, at least ``MIN_PANEL_W`` px, and at most 40% of the
+    frame width when it is given (so portrait frames do not get a huge panel).
+    """
+    w = max(MIN_PANEL_W, round(267 * max(frame_h / 720.0, 0.5)))
+    if frame_w:
+        w = min(w, max(MIN_PANEL_W, round(0.4 * frame_w)))
+    return w
 
 
 def output_size(width: int, height: int, layout: str) -> Tuple[int, int]:
     """Size of the written frames: widened by the side panel in ``side`` mode."""
-    return (width + panel_width(height), height) if layout == LAYOUT_SIDE else (width, height)
+    return (width + panel_width(height, width), height) if layout == LAYOUT_SIDE else (width, height)
+
+
+def _ellipsize(text: str, scale: float, thickness: int, max_w: int) -> str:
+    """Shorten ``text`` with ``...`` so that it fits ``max_w`` pixels."""
+    if _text_width(text, scale, thickness) <= max_w:
+        return text
+    while len(text) > 1 and _text_width(text + "...", scale, thickness) > max_w:
+        text = text[:-1]
+    return text + "..."
 
 
 def _class_entries(line: CountingLine, order: Sequence[str]) -> List[str]:
+    names = list(order) + [c for c in line.counts if c not in order]  # classes outside the given order
     out = []
-    for cls_name in order:
+    for cls_name in names:
         data = line.counts.get(cls_name)
         if data and (data[IN] or data[OUT]):
             out.append(f"{cls_name} {data[IN]} in / {data[OUT]} out")
@@ -262,35 +283,40 @@ def _class_entries(line: CountingLine, order: Sequence[str]) -> List[str]:
 
 def _layout_blocks(lines: Sequence[CountingLine], order: Sequence[str], inner_w: int,
                    scale: float, thick: int):
-    """Measure every block; returns ``(blocks, total_height)``.
+    """Measure every block; returns ``(blocks, heights, row_h)``.
 
-    Each block is ``(line_index, [row texts], row_height)``; entries are joined
-    on one row and wrapped only when they exceed ``inner_w``.
+    A block is ``(line_index, [row texts])``; class entries share a row and wrap
+    onto extra rows only when they exceed ``inner_w`` (an entry wider than a
+    whole row is ellipsized). ``heights[i]`` is the pixel height of block ``i``.
     """
     sep = "   "
     row_h = round(cv2.getTextSize("Ag", FONT, scale, thick)[0][1] * 1.7)
-    blocks, total = [], 0
     gap = round(row_h * 0.6)
+    blocks, heights = [], []
     for i, line in enumerate(lines):
         entries = _class_entries(line, order)
         rows: List[str] = []
         if not entries:
             rows = ["no crossings yet"]
         for e in entries:
+            e = _ellipsize(e, scale, thick, inner_w)
             if rows and _text_width(rows[-1] + sep + e, scale, thick) <= inner_w:
                 rows[-1] += sep + e
             else:
                 rows.append(e)
-        blocks.append((i, rows, row_h))
-        total += row_h * (1 + len(rows)) + gap
-    return blocks, total
+        blocks.append((i, rows))
+        heights.append(row_h * (1 + len(rows)) + gap)
+    return blocks, heights, row_h
 
 
 def draw_side_panel(panel: np.ndarray, lines: Sequence[CountingLine],
                     class_order: Iterable[str]) -> None:
     """Fill ``panel`` (dark column) with one compact count block per line.
 
-    The font scale shrinks (down to a minimum) until all blocks fit the height.
+    Class names are drawn exactly as given. The font scale shrinks (down to
+    ``MIN_FONT``) until all blocks fit; if they still do not, the blocks that fit
+    are drawn followed by a dim ``+N more lines`` row. Nothing is drawn outside
+    the panel.
 
     Args:
         panel: Panel image to draw on (modified in place).
@@ -298,43 +324,61 @@ def draw_side_panel(panel: np.ndarray, lines: Sequence[CountingLine],
         class_order: Class names in display order.
     """
     h, w = panel.shape[:2]
-    k = max(h / 720.0, 0.5)
+    k = max(0.5, min(h / 720.0, w / 267.0))  # limited by both dimensions
     panel[:] = PANEL_BG
-    pad = round(12 * k)
-    inner_w = w - 2 * pad
+    pad = max(4, round(12 * k))
+    inner_w = max(w - 2 * pad, 10)
     order = list(class_order)
     lines = list(lines)
+    title_scale = 0.6 * k
     title_h = round(34 * k)
     footer_h = round(30 * k)
     avail = h - title_h - footer_h - pad
     scale = 0.5 * k
-    min_scale = 0.22 * k
+    min_scale = min(scale, MIN_FONT)
     thick = 1
     while True:
-        blocks, total = _layout_blocks(lines, order, inner_w, scale, thick)
-        if total <= avail or scale <= min_scale:
+        blocks, heights, row_h = _layout_blocks(lines, order, inner_w, scale, thick)
+        if sum(heights) <= avail or scale <= min_scale:
             break
         scale = max(min_scale, scale * 0.93)
 
-    cv2.putText(panel, "Line counts", (pad, pad + round(16 * k)), FONT, 0.6 * k, TEXT_COLOR, max(1, round(k)))
+    shown, used = 0, 0
+    while shown < len(blocks) and used + heights[shown] <= avail:
+        used += heights[shown]
+        shown += 1
+    hidden = len(blocks) - shown
+    if hidden:  # keep one row for the "+N more lines" note
+        while shown > 0 and used + row_h > avail:
+            shown -= 1
+            used -= heights[shown]
+        hidden = len(blocks) - shown
+
+    title = _ellipsize("Line counts", title_scale, max(1, round(k)), inner_w)
+    cv2.putText(panel, title, (pad, pad + round(16 * k)), FONT, title_scale, TEXT_COLOR, max(1, round(k)))
     y = title_h + pad
-    sw = max(6, round(10 * k * scale / (0.5 * k)))
-    for i, rows, row_h in blocks:
-        color = line_color(i)
-        cv2.rectangle(panel, (pad, y + 2), (pad + sw, y + 2 + sw), color, -1)
-        cv2.putText(panel, lines[i].name, (pad + sw + round(6 * k), y + sw + 2), FONT, scale, TEXT_COLOR, thick)
+    sw = max(5, round(20 * scale))
+    tx = pad + sw + max(3, round(6 * k))
+    text_w = max(w - tx - pad, 10)
+    for i, rows in blocks[:shown]:
+        cv2.rectangle(panel, (pad, y + 2), (pad + sw, y + 2 + sw), line_color(i), -1)
+        cv2.putText(panel, _ellipsize(lines[i].name, scale, thick, text_w), (tx, y + sw + 2),
+                    FONT, scale, TEXT_COLOR, thick)
         y += row_h
-        for r, text in enumerate(rows):
+        for text in rows:
             dim = text == "no crossings yet"
-            cv2.putText(panel, text, (pad + sw + round(6 * k), y + sw + 2), FONT, scale * 0.95,
-                        DIM_COLOR if dim else MUTED_COLOR, thick)
+            cv2.putText(panel, _ellipsize(text, scale * 0.95, thick, text_w), (tx, y + sw + 2), FONT,
+                        scale * 0.95, DIM_COLOR if dim else MUTED_COLOR, thick)
             y += row_h
         y += round(row_h * 0.6)
+    if hidden:
+        cv2.putText(panel, _ellipsize(f"+{hidden} more lines", scale, thick, text_w), (tx, y + sw + 2),
+                    FONT, scale, DIM_COLOR, thick)
 
-    p_in = sum(d.get(IN, 0) for ln in lines for c, d in ln.counts.items() if c == "Person")
-    p_out = sum(d.get(OUT, 0) for ln in lines for c, d in ln.counts.items() if c == "Person")
-    cv2.putText(panel, f"Persons total: {p_in} in / {p_out} out", (pad, h - round(10 * k)),
-                FONT, 0.45 * k, TEXT_COLOR, 1)
+    t_in = sum(d.get(IN, 0) for ln in lines for d in ln.counts.values())
+    t_out = sum(d.get(OUT, 0) for ln in lines for d in ln.counts.values())
+    foot = _ellipsize(f"Total: {t_in} in / {t_out} out", 0.45 * k, 1, inner_w)
+    cv2.putText(panel, foot, (pad, h - max(3, round(10 * k))), FONT, 0.45 * k, TEXT_COLOR, 1)
 
 
 def compose_frame(frame: np.ndarray, lines: Sequence[CountingLine], class_order: Iterable[str],
@@ -353,7 +397,7 @@ def compose_frame(frame: np.ndarray, lines: Sequence[CountingLine], class_order:
     """
     if layout == LAYOUT_SIDE:
         draw_counting_lines(frame, lines, badges=True)
-        panel = np.empty((frame.shape[0], panel_width(frame.shape[0]), 3), dtype=np.uint8)
+        panel = np.empty((frame.shape[0], panel_width(frame.shape[0], frame.shape[1]), 3), dtype=np.uint8)
         draw_side_panel(panel, lines, class_order)
         return np.hstack([frame, panel])
     draw_counting_lines(frame, lines, badges=False)

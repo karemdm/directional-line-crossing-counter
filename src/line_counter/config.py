@@ -27,7 +27,7 @@ class ProcessingConfig:
         conf: Detection confidence threshold passed to ``track()``.
         imgsz: Inference image size passed to ``track()``.
         classes: COCO class IDs to track.
-        class_names: Display names per class ID (falls back to model names).
+        class_names: Optional display-name overrides per class ID (default: none; the model's own names are used).
         tracker: Ultralytics tracker config file.
         blur_faces: Whether to blur faces inside person boxes.
         face_model: Face detector weights used when ``blur_faces`` is True.
@@ -48,7 +48,7 @@ class ProcessingConfig:
     conf: float = 0.01
     imgsz: int = 2048
     classes: Tuple[int, ...] = tuple(DEFAULT_CLASS_NAMES)
-    class_names: Dict[int, str] = field(default_factory=lambda: dict(DEFAULT_CLASS_NAMES))
+    class_names: Dict[int, str] = field(default_factory=dict)
     tracker: str = "botsort.yaml"
     blur_faces: bool = False
     face_model: str = "weights/face_yolov8m.pt"
@@ -68,13 +68,13 @@ class ProcessingConfig:
 
         Args:
             cls_id: COCO class ID.
-            model_names: Optional ``model.names`` mapping used as fallback.
+            model_names: Optional ``model.names`` mapping.
 
         Returns:
-            The configured name, the model name, or ``"Obj"``.
+            The override, the model's name as is, or ``"Obj"``.
         """
         if cls_id in self.class_names:
             return self.class_names[cls_id]
         if model_names and cls_id in model_names:
-            return str(model_names[cls_id]).capitalize()
+            return str(model_names[cls_id])
         return "Obj"
