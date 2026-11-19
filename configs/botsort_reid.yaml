@@ -1,0 +1,20 @@
+# BoT-SORT tuned for small / distant people (wide street cameras, 1080p from high up).
+# Based on ultralytics/cfg/trackers/botsort.yaml; only the keys marked "changed" differ.
+# Usage: line-counter ... --tracker configs/botsort_reid.yaml
+
+tracker_type: botsort # (str) Tracker backend: botsort
+track_high_thresh: 0.25 # (float) First-stage match threshold (unchanged)
+track_low_thresh: 0.05 # changed (was 0.1): small people often score very low; keep them for the second association stage
+new_track_thresh: 0.2 # changed (was 0.25): let weaker detections of small people start a track
+track_buffer: 90 # changed (was 30): keep lost tracks ~3 s at 30 fps so people hidden by crowds or missed detections get their ID back
+match_thresh: 0.8 # (float) Association similarity threshold (unchanged)
+fuse_score: True # (bool) Fuse detection score with matching cost (unchanged)
+
+# BoT-SORT specifics
+gmc_method: sparseOptFlow # (str) Global motion compensation (unchanged; harmless for a fixed camera)
+
+# ReID model related thresh
+proximity_thresh: 0.3 # changed (was 0.5): tiny boxes move by more than their own size between frames, so IoU is low; accept lower overlap before using appearance
+appearance_thresh: 0.8 # (float) Min appearance similarity for ReID (unchanged)
+with_reid: True # changed (was False): use appearance features to re-link a person after an occlusion or gap
+model: auto # (str) ReID model: "auto" uses the detector's own features (no extra weights to download)
