@@ -50,15 +50,26 @@ See [docs/how-it-works.md](docs/how-it-works.md) for the formulas, edge cases an
 
 Requires Python 3.9+ and a desktop session for the OpenCV/Tkinter windows.
 
-```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux / macOS
-source venv/bin/activate
+Linux / macOS:
 
+```bash
+git clone https://github.com/karemdm/directional-line-crossing-counter.git
+cd directional-line-crossing-counter
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-pip install -e .        # optional: installs the `line-counter` command
+pip install -e .        # installs the `line-counter` command
+```
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/karemdm/directional-line-crossing-counter.git
+cd directional-line-crossing-counter
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -e .
 ```
 
 On Debian/Ubuntu, Tkinter and OpenCV GUI support may need system packages:
