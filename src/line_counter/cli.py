@@ -14,6 +14,20 @@ logger = logging.getLogger("line_counter")
 _DEFAULTS = ProcessingConfig()
 
 
+def _positive_int(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("must be >= 1")
+    return n
+
+
+def _non_negative_int(value: str) -> int:
+    n = int(value)
+    if n < 0:
+        raise argparse.ArgumentTypeError("must be >= 0")
+    return n
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the argument parser.
 
@@ -44,6 +58,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tracker", default=_DEFAULTS.tracker,
                    help="Ultralytics tracker config, e.g. botsort.yaml or bytetrack.yaml "
                         "(default: %(default)s).")
+    p.add_argument("--frame-step", type=_positive_int, default=_DEFAULTS.frame_step,
+                   help="Process every Nth frame (default: %(default)s = all). The output is "
+                        "written at fps/N, so it plays at the original speed.")
+    p.add_argument("--cooldown-frames", type=_non_negative_int, default=_DEFAULTS.cooldown_frames,
+                   help="Do not count a crossing in the same direction within this many source "
+                        "frames and --cooldown-px pixels of a previous one on the same line, "
+                        "to absorb ID switches (default: %(default)s = off).")
+    p.add_argument("--cooldown-px", type=float, default=_DEFAULTS.cooldown_px,
+                   help="Radius in pixels for --cooldown-frames (default: %(default)s).")
     p.add_argument("--blur-faces", action="store_true",
                    help="Blur faces detected inside person boxes (best-effort).")
     p.add_argument("--face-model", default=_DEFAULTS.face_model,
@@ -74,6 +97,9 @@ def config_from_args(args: argparse.Namespace) -> ProcessingConfig:
         blur_faces=args.blur_faces,
         face_model=args.face_model,
         display=not args.no_display,
+        cooldown_frames=args.cooldown_frames,
+        cooldown_px=args.cooldown_px,
+        frame_step=args.frame_step,
     )
 
 

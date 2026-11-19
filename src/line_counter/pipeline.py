@@ -79,13 +79,16 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
         raise RuntimeError(f"Cannot read the frame size of: {input_path}")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    step = max(1, int(config.frame_step))
+    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps / step, (w, h))
     if not out.isOpened():
         cap.release()
         raise RuntimeError(f"Cannot open video writer: {output_path}")
 
     class_order = [config.class_name(c, model.names) for c in config.classes]
-    fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2) for ln in lines]  # start from zero
+    fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2,
+                                cooldown_frames=config.cooldown_frames,
+                                cooldown_px=config.cooldown_px) for ln in lines]  # start from zero
     counter = LineCounter(fresh_lines, class_order)
 
     if config.display:
@@ -98,6 +101,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
             if not ok:
                 break
             frame_idx += 1
+            if (frame_idx - 1) % step:  # --frame-step: skip frames (decoded but not processed)
+                continue
             results = model.track(
                 frame,
                 conf=config.conf,
@@ -126,7 +131,7 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
                     cls_name = config.class_name(int(cls_id), model.names)
                     anchor = ((x1 + x2) // 2, y2)  # bottom-center ("feet" / wheels)
                     draw_track(frame, (x1, y1, x2, y2), int(track_id), cls_name, anchor)
-                    for line_name, direction in counter.update(int(track_id), cls_name, anchor):
+                    for line_name, direction in counter.update(int(track_id), cls_name, anchor, frame_idx):
                         logger.info("Frame %d: #%d %s crossed %s (%s)",
                                     frame_idx, track_id, cls_name, line_name, direction)
 
