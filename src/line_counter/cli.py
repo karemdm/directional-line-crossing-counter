@@ -70,6 +70,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--layout", choices=("side", "overlay"), default=_DEFAULTS.layout,
                    help="side: counts in a panel next to the video (output is wider); overlay: "
                         "counts drawn over the video (default: %(default)s).")
+    p.add_argument("--save-tracks", metavar="PATH.jsonl",
+                   help="Write the tracks of every processed frame to this JSON Lines file.")
+    p.add_argument("--replay-tracks", metavar="PATH.jsonl",
+                   help="Skip detection/tracking and re-render from a file written by "
+                        "--save-tracks (face blur is not applied in replay).")
     p.add_argument("--blur-faces", action="store_true",
                    help="Blur faces detected inside person boxes (best-effort).")
     p.add_argument("--face-model", default=_DEFAULTS.face_model,
@@ -104,6 +109,8 @@ def config_from_args(args: argparse.Namespace) -> ProcessingConfig:
         cooldown_px=args.cooldown_px,
         frame_step=args.frame_step,
         layout=args.layout,
+        save_tracks=args.save_tracks,
+        replay_tracks=args.replay_tracks,
     )
 
 
@@ -160,6 +167,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not lines:
         logger.error("No counting lines defined; nothing to do.")
         return 1
+
+    if args.save_tracks and args.replay_tracks:
+        parser.error("--save-tracks and --replay-tracks cannot be used together")
 
     output = args.output or default_output_path(args.input)
     process_video(args.input, output, lines, config)

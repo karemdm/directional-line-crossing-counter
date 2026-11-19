@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 #: Default COCO class IDs tracked and their display names.
 DEFAULT_CLASS_NAMES: Dict[int, str] = {
@@ -40,6 +40,8 @@ class ProcessingConfig:
         frame_step: Process every Nth frame (1 = all); output fps is divided by N.
         display: Show the live preview window (press Q to stop).
         layout: ``side`` (counts in a panel next to the video) or ``overlay`` (HUD over the video).
+        save_tracks: Optional JSONL path where the tracks of each processed frame are written.
+        replay_tracks: Optional JSONL path; skips detection/tracking and replays saved tracks.
     """
 
     model: str = "weights/yolov8m.pt"
@@ -58,6 +60,8 @@ class ProcessingConfig:
     cooldown_px: float = 40.0
     frame_step: int = 1
     layout: str = "side"
+    save_tracks: Optional[str] = None
+    replay_tracks: Optional[str] = None
 
     def class_name(self, cls_id: int, model_names: Dict[int, str] | None = None) -> str:
         """Return the display name of a class ID.
