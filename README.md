@@ -124,6 +124,26 @@ Lines file format (pixel coordinates in the original video resolution):
 ]
 ```
 
+## Small or distant people
+
+On wide shots (for example a 1080p street camera filmed from high up) people are only a few
+pixels tall, and the default settings lose many of them. To keep more crossings:
+
+```bash
+line-counter --input video.mp4 --lines lines.json --no-display   --model yolo11x.pt --imgsz 1920 --conf 0.15   --tracker configs/botsort_reid.yaml --frame-step 2
+```
+
+- **Larger model:** `--model yolo11x.pt` or `--model yolo26x.pt` (downloaded automatically by Ultralytics). Larger models find small people more reliably than the medium one.
+- **Larger input size:** `--imgsz 1920` to `2560` for 1080p wide shots, so small people are not shrunk away before detection.
+- **Lower confidence:** `--conf` around `0.1` to `0.2` keeps weak detections of small people without flooding the tracker with false ones.
+- **Longer-memory tracker:** `--tracker configs/botsort_reid.yaml` keeps lost tracks for about 3 s (at 30 fps), uses lower thresholds for weak detections and re-identifies people by appearance. `configs/bytetrack_long.yaml` is a lighter alternative without ReID.
+- **Fewer frames:** `--frame-step 2` (or 3) processes every Nth frame and writes the output at fps/N, which keeps long videos feasible at a large `--imgsz`. Keep it low for fast movers: people must not travel too far between processed frames.
+- **Duplicate crossings (optional):** if ID switches double-count the same person at a line, try `--cooldown-frames 15 --cooldown-px 40`. It is off by default because it can also hide two real people crossing side by side in a crowd.
+
+The trade-off is speed: a larger model, a larger `--imgsz` and ReID each make processing
+noticeably slower, and a lower `--conf` adds false detections. Start with one change at a
+time and compare the counts on a short clip you have verified by eye.
+
 ## Parameters
 
 | Name | Default | Description |
@@ -136,7 +156,10 @@ Lines file format (pixel coordinates in the original video resolution):
 | `--conf` | `0.01` | Detection confidence threshold (see note below). |
 | `--imgsz` | `2048` | Inference image size. |
 | `--classes` | `0 2 3 5 7` | COCO class IDs (person, car, motorcycle, bus, truck). |
-| `--tracker` | `botsort.yaml` | Ultralytics tracker config (`bytetrack.yaml` also works). |
+| `--tracker` | `botsort.yaml` | Ultralytics tracker config (`bytetrack.yaml` also works; ready-made `configs/botsort_reid.yaml` and `configs/bytetrack_long.yaml` for small or distant people). |
+| `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
+| `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
+| `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
 | `--blur-faces` | off | Blur faces detected inside person boxes. |
 | `--face-model` | `weights/face_yolov8m.pt` | Face detector weights for `--blur-faces`. |
 | `--no-display` | off | Disable the live preview (requires `--lines`). |
@@ -167,6 +190,8 @@ directional-line-crossing-counter/
   README.md
   requirements.txt
   pyproject.toml
+  configs/botsort_reid.yaml    # BoT-SORT + ReID, long buffer, for small people
+  configs/bytetrack_long.yaml  # ByteTrack with a long buffer
   docs/how-it-works.md
   docs/assets/demo.gif
   results/README.md  # example output video and source notes
@@ -187,6 +212,7 @@ directional-line-crossing-counter/
   tests/
     test_geometry.py
     test_counter.py
+    test_cli.py
 ```
 
 Run the tests with `pytest` (they only need the standard library).
@@ -200,7 +226,7 @@ Run the tests with `pytest` (they only need the standard library).
 - The HUD panel has a fixed width; many classes or long line names can overflow it.
 - No perspective correction: lines are drawn in image space.
 - Face blurring is optional and **best-effort**: faces the face detector misses, and faces outside detected person boxes, are not blurred. Do not rely on it as the only anonymisation measure; review the output before sharing it and follow the privacy rules that apply where the video was recorded.
-- Processing at `imgsz 2048` is slow on CPU.
+- Processing at `imgsz 2048` is slow on CPU (see `--frame-step` and "Small or distant people").
 
 ## Models & credits
 
