@@ -10,7 +10,7 @@ import cv2
 
 from line_counter.config import PERSON_CLASS_ID, ProcessingConfig
 from line_counter.counter import CountingLine, LineCounter
-from line_counter.drawing import draw_counting_lines, draw_hud, draw_track
+from line_counter.drawing import compose_frame, draw_track, output_size
 from line_counter.line_editor import window_size
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     step = max(1, int(config.frame_step))
-    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps / step, (w, h))
+    out_w, out_h = output_size(w, h, config.layout)
+    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps / step, (out_w, out_h))
     if not out.isOpened():
         cap.release()
         raise RuntimeError(f"Cannot open video writer: {output_path}")
@@ -135,10 +136,9 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
                         logger.info("Frame %d: #%d %s crossed %s (%s)",
                                     frame_idx, track_id, cls_name, line_name, direction)
 
-            draw_counting_lines(frame, counter.lines)
-            draw_hud(frame, counter.lines, class_order)
-            if frame.shape[1] != w or frame.shape[0] != h:  # writer silently drops mismatched frames
-                frame = cv2.resize(frame, (w, h))
+            frame = compose_frame(frame, counter.lines, class_order, config.layout)
+            if frame.shape[1] != out_w or frame.shape[0] != out_h:  # writer silently drops mismatched frames
+                frame = cv2.resize(frame, (out_w, out_h))
             out.write(frame)
 
             if total > 0 and frame_idx % 100 == 0:

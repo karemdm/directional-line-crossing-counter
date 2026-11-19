@@ -67,6 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "to absorb ID switches (default: %(default)s = off).")
     p.add_argument("--cooldown-px", type=float, default=_DEFAULTS.cooldown_px,
                    help="Radius in pixels for --cooldown-frames (default: %(default)s).")
+    p.add_argument("--layout", choices=("side", "overlay"), default=_DEFAULTS.layout,
+                   help="side: counts in a panel next to the video (output is wider); overlay: "
+                        "counts drawn over the video (default: %(default)s).")
     p.add_argument("--blur-faces", action="store_true",
                    help="Blur faces detected inside person boxes (best-effort).")
     p.add_argument("--face-model", default=_DEFAULTS.face_model,
@@ -100,6 +103,7 @@ def config_from_args(args: argparse.Namespace) -> ProcessingConfig:
         cooldown_frames=args.cooldown_frames,
         cooldown_px=args.cooldown_px,
         frame_step=args.frame_step,
+        layout=args.layout,
     )
 
 

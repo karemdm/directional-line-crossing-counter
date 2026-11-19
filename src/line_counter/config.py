@@ -39,6 +39,7 @@ class ProcessingConfig:
         cooldown_px: Radius in pixels of the duplicate-crossing window.
         frame_step: Process every Nth frame (1 = all); output fps is divided by N.
         display: Show the live preview window (press Q to stop).
+        layout: ``side`` (counts in a panel next to the video) or ``overlay`` (HUD over the video).
     """
 
     model: str = "weights/yolov8m.pt"
@@ -56,6 +57,7 @@ class ProcessingConfig:
     cooldown_frames: int = 0
     cooldown_px: float = 40.0
     frame_step: int = 1
+    layout: str = "side"
 
     def class_name(self, cls_id: int, model_names: Dict[int, str] | None = None) -> str:
         """Return the display name of a class ID.
