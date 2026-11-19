@@ -126,3 +126,50 @@ def test_load_lines_accepts_utf8_bom_and_save_creates_folders() -> None:
         nested = os.path.join(tmp, "sub", "dir", "lines.json")
         save_lines([_horizontal()], nested)
         assert load_lines(nested)[0].name == "Line_1"
+
+
+def _cooldown_line(frames: int = 15, px: float = 40.0) -> CountingLine:
+    return CountingLine("L", (0, 0), (100, 0), cooldown_frames=frames, cooldown_px=px)
+
+
+def test_cooldown_off_by_default_counts_both_ids() -> None:
+    line = _horizontal()
+    assert line.update(1, "Person", (5, -5), (5, 5), frame=10) == IN
+    assert line.update(2, "Person", (6, -5), (6, 5), frame=11) == IN
+    assert line.counts["Person"] == {IN: 2, OUT: 0}
+
+
+def test_cooldown_suppresses_nearby_repeat_same_direction() -> None:
+    line = _cooldown_line()
+    assert line.update(1, "Person", (50, -5), (50, 5), frame=10) == IN
+    assert line.update(2, "Person", (60, -5), (60, 5), frame=14) is None
+    assert line.counts["Person"] == {IN: 1, OUT: 0}
+    assert 2 in line.counted_ids  # the ghost ID cannot be counted later either
+
+
+def test_cooldown_keeps_far_away_crossing() -> None:
+    line = _cooldown_line(px=40.0)
+    assert line.update(1, "Person", (10, -5), (10, 5), frame=10) == IN
+    assert line.update(2, "Person", (90, -5), (90, 5), frame=11) == IN
+
+
+def test_cooldown_keeps_late_crossing() -> None:
+    line = _cooldown_line(frames=15)
+    assert line.update(1, "Person", (50, -5), (50, 5), frame=10) == IN
+    assert line.update(2, "Person", (52, -5), (52, 5), frame=26) == IN
+
+
+def test_cooldown_keeps_opposite_direction() -> None:
+    line = _cooldown_line()
+    assert line.update(1, "Person", (50, -5), (50, 5), frame=10) == IN
+    assert line.update(2, "Person", (52, 5), (52, -5), frame=11) == OUT
+
+
+def test_line_counter_passes_frame_to_cooldown() -> None:
+    line = _cooldown_line()
+    counter = LineCounter([line], ["Person"])
+    counter.update(1, "Person", (50, -5), frame=1)
+    assert counter.update(1, "Person", (50, 5), frame=2) == [("L", IN)]
+    counter.update(2, "Person", (55, -5), frame=3)
+    assert counter.update(2, "Person", (55, 5), frame=4) == []
+    assert line.counts["Person"] == {IN: 1, OUT: 0}
