@@ -130,7 +130,8 @@ On wide shots (for example a 1080p street camera filmed from high up) people are
 pixels tall, and the default settings lose many of them. To keep more crossings:
 
 ```bash
-line-counter --input video.mp4 --lines lines.json --no-display \n    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid.yaml --frame-step 2
+line-counter --input video.mp4 --lines lines.json --no-display \
+    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid.yaml --frame-step 2
 ```
 
 - **Larger input size first:** on a crowded 1080p crossing, raising `--imgsz` from 1280 to 1920 found
