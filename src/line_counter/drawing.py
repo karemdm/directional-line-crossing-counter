@@ -65,9 +65,11 @@ def draw_counting_lines(img: np.ndarray, lines: Iterable[CountingLine]) -> None:
         img: Frame to draw on (modified in place).
         lines: Counting lines in frame coordinates.
     """
+    k = max(0.5, img.shape[0] / 720)  # same scale as the HUD: readable on 1080p and above
+    th = max(2, round(2 * k))
     for line in lines:
-        cv2.line(img, line.p1, line.p2, LINE_COLOR, 2)
-        cv2.putText(img, line.name, (line.p1[0], line.p1[1] - 8), FONT, 0.6, LINE_COLOR, 2)
+        cv2.line(img, line.p1, line.p2, LINE_COLOR, th)
+        cv2.putText(img, line.name, (line.p1[0], line.p1[1] - round(8 * k)), FONT, 0.6 * k, LINE_COLOR, th)
 
 
 Segment = Tuple[str, Color]
