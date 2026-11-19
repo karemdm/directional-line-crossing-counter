@@ -1,0 +1,11 @@
+# ByteTrack with a longer memory: lighter alternative to configs/botsort_reid.yaml (no ReID).
+# Based on ultralytics/cfg/trackers/bytetrack.yaml; only the keys marked "changed" differ.
+# Usage: line-counter ... --tracker configs/bytetrack_long.yaml
+
+tracker_type: bytetrack # (str) Tracker backend: bytetrack
+track_high_thresh: 0.25 # (float) First-stage match threshold (unchanged)
+track_low_thresh: 0.05 # changed (was 0.1): keep very weak detections of small people for the second stage
+new_track_thresh: 0.2 # changed (was 0.25): let weaker detections start a track
+track_buffer: 90 # changed (was 30): keep lost tracks ~3 s at 30 fps
+match_thresh: 0.8 # (float) Association similarity threshold (unchanged)
+fuse_score: True # (bool) Fuse detection score with matching cost (unchanged)

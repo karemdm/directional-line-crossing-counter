@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -21,6 +22,12 @@ class CountingLine:
         p2: Second endpoint in original video pixel coordinates.
         counts: ``{class_name: {"IN": n, "OUT": n}}``.
         counted_ids: Track IDs already counted on this line (any class).
+        cooldown_frames: If > 0, a crossing is not counted when another one in
+            the same direction was counted on this line at most this many
+            frames earlier and within ``cooldown_px`` pixels (opt-in, 0 = off).
+            Meant to absorb ID switches that re-create the same crossing.
+        cooldown_px: Radius in pixels used together with ``cooldown_frames``.
+        recent: Recent counted crossings as ``(frame, point, direction)``.
     """
 
     name: str
@@ -28,8 +35,22 @@ class CountingLine:
     p2: Tuple[int, int]
     counts: Dict[str, Dict[str, int]] = field(default_factory=dict)
     counted_ids: Set[int] = field(default_factory=set)
+    cooldown_frames: int = 0
+    cooldown_px: float = 0.0
+    recent: List[Tuple[int, Point, str]] = field(default_factory=list)
 
-    def update(self, track_id: int, cls_name: str, prev: Point, curr: Point) -> Optional[str]:
+    def _is_duplicate(self, frame: int, point: Point, direction: str) -> bool:
+        """Tell whether a crossing repeats a recent one (cooldown)."""
+        if self.cooldown_frames <= 0:
+            return False
+        self.recent = [r for r in self.recent if frame - r[0] <= self.cooldown_frames]
+        return any(
+            d == direction and math.hypot(point[0] - pt[0], point[1] - pt[1]) <= self.cooldown_px
+            for _, pt, d in self.recent
+        )
+
+    def update(self, track_id: int, cls_name: str, prev: Point, curr: Point,
+               frame: int = 0) -> Optional[str]:
         """Check one trajectory step against this line and count it.
 
         A crossing is counted when the segment ``prev -> curr`` intersects the
@@ -45,9 +66,12 @@ class CountingLine:
             cls_name: Class name used as the counting bucket.
             prev: Previous bottom-center point of the object.
             curr: Current bottom-center point of the object.
+            frame: Source frame index, only used by the optional cooldown.
 
         Returns:
             ``"IN"`` or ``"OUT"`` if a new crossing was counted, else None.
+            A crossing suppressed by the cooldown returns None, but its
+            track ID is still marked as counted.
         """
         if track_id in self.counted_ids:
             return None
@@ -56,9 +80,13 @@ class CountingLine:
         # segments_intersect() only accepts steps where exactly one endpoint is
         # strictly on the positive side, so the sign of curr decides.
         direction = IN if side_of_line(self.p1, self.p2, curr) > 0 else OUT
+        self.counted_ids.add(track_id)
+        if self._is_duplicate(frame, curr, direction):
+            return None
+        if self.cooldown_frames > 0:
+            self.recent.append((frame, curr, direction))
         bucket = self.counts.setdefault(cls_name, {IN: 0, OUT: 0})
         bucket[direction] += 1
-        self.counted_ids.add(track_id)
         return direction
 
 
@@ -78,13 +106,15 @@ class LineCounter:
             for name in names:
                 line.counts.setdefault(name, {IN: 0, OUT: 0})
 
-    def update(self, track_id: int, cls_name: str, curr: Point) -> List[Tuple[str, str]]:
+    def update(self, track_id: int, cls_name: str, curr: Point,
+               frame: int = 0) -> List[Tuple[str, str]]:
         """Register a new position for a track and count any crossings.
 
         Args:
             track_id: Tracker ID of the object.
             cls_name: Class name of the object in the current frame.
             curr: Current bottom-center point.
+            frame: Source frame index (used by the optional per-line cooldown).
 
         Returns:
             A list of ``(line_name, direction)`` for crossings counted now.
@@ -93,7 +123,7 @@ class LineCounter:
         prev = self.previous_positions.get(track_id)
         if prev is not None:
             for line in self.lines:
-                direction = line.update(track_id, cls_name, prev, curr)
+                direction = line.update(track_id, cls_name, prev, curr, frame)
                 if direction is not None:
                     events.append((line.name, direction))
         self.previous_positions[track_id] = curr

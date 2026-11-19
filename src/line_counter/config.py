@@ -34,6 +34,10 @@ class ProcessingConfig:
         face_conf: Confidence threshold of the face detector.
         blur_kernel: Gaussian blur kernel size (odd, odd).
         blur_sigma: Gaussian blur sigma.
+        cooldown_frames: Per-line duplicate-crossing window in source frames
+            (0 = off); see :class:`line_counter.counter.CountingLine`.
+        cooldown_px: Radius in pixels of the duplicate-crossing window.
+        frame_step: Process every Nth frame (1 = all); output fps is divided by N.
         display: Show the live preview window (press Q to stop).
     """
 
@@ -49,6 +53,9 @@ class ProcessingConfig:
     blur_kernel: Tuple[int, int] = (51, 51)
     blur_sigma: float = 30.0
     display: bool = True
+    cooldown_frames: int = 0
+    cooldown_px: float = 40.0
+    frame_step: int = 1
 
     def class_name(self, cls_id: int, model_names: Dict[int, str] | None = None) -> str:
         """Return the display name of a class ID.
