@@ -130,9 +130,12 @@ On wide shots (for example a 1080p street camera filmed from high up) people are
 pixels tall, and the default settings lose many of them. To keep more crossings:
 
 ```bash
-line-counter --input video.mp4 --lines lines.json --no-display   --model yolo11x.pt --imgsz 1920 --conf 0.15   --tracker configs/botsort_reid.yaml --frame-step 2
+line-counter --input video.mp4 --lines lines.json --no-display \n    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid.yaml --frame-step 2
 ```
 
+- **Larger input size first:** on a crowded 1080p crossing, raising `--imgsz` from 1280 to 1920 found
+  almost twice as many people with the same medium model, more than switching to an extra-large model at
+  the same size did. Try `--imgsz` before `--model`.
 - **Larger model:** `--model yolo11x.pt` or `--model yolo26x.pt` (downloaded automatically by Ultralytics). Larger models find small people more reliably than the medium one.
 - **Larger input size:** `--imgsz 1920` to `2560` for 1080p wide shots, so small people are not shrunk away before detection.
 - **Lower confidence:** `--conf` around `0.1` to `0.2` keeps weak detections of small people without flooding the tracker with false ones.
