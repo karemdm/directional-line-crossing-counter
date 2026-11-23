@@ -10,8 +10,10 @@ import cv2
 
 from line_counter.config import PERSON_CLASS_ID, ProcessingConfig
 from line_counter.counter import CountingLine, LineCounter
-from line_counter.drawing import draw_counting_lines, draw_hud, draw_track
+from line_counter.drawing import compose_frame, draw_track, output_size
 from line_counter.line_editor import window_size
+from line_counter.tracks_io import (infer_frame_step, load_tracks, track_record,
+                                    write_frame_tracks)
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +55,19 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     Raises:
         RuntimeError: If the video cannot be opened or the writer fails.
     """
-    from ultralytics import YOLO
+    replay = None
+    model = None
+    if config.replay_tracks:
+        replay = load_tracks(config.replay_tracks)  # no detector, tracker or face blur needed
+    else:
+        from ultralytics import YOLO
 
-    # Load the models first, so a bad weights path does not leave an open
-    # capture or an empty output file behind.
-    logger.info("Loading detector %s", config.model)
-    model = YOLO(config.model)
+        # Load the models first, so a bad weights path does not leave an open
+        # capture or an empty output file behind.
+        logger.info("Loading detector %s", config.model)
+        model = YOLO(config.model)
     blurrer = None
-    if config.blur_faces:
+    if config.blur_faces and replay is None:
         from line_counter.privacy import FaceBlurrer
 
         blurrer = FaceBlurrer(config.face_model, config.face_conf, config.blur_kernel, config.blur_sigma)
@@ -80,12 +87,19 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     step = max(1, int(config.frame_step))
-    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps / step, (w, h))
+    if replay is not None:
+        step = infer_frame_step(list(replay), step)  # same step as the saved run
+    out_w, out_h = output_size(w, h, config.layout)
+    out = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps / step, (out_w, out_h))
     if not out.isOpened():
         cap.release()
         raise RuntimeError(f"Cannot open video writer: {output_path}")
 
-    class_order = [config.class_name(c, model.names) for c in config.classes]
+    if replay is not None:  # class names come from the saved tracks, ordered by class id
+        saved = {t["cls"]: t["name"] for ts in replay.values() for t in ts}
+        class_order = [saved[c] for c in sorted(saved)]
+    else:
+        class_order = [config.class_name(c, model.names) for c in config.classes]
     fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2,
                                 cooldown_frames=config.cooldown_frames,
                                 cooldown_px=config.cooldown_px) for ln in lines]  # start from zero
@@ -94,6 +108,11 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     if config.display:
         cv2.namedWindow(PREVIEW_WINDOW, cv2.WINDOW_NORMAL)
 
+    tracks_fh = None
+    if config.save_tracks and replay is None:
+        Path(config.save_tracks).parent.mkdir(parents=True, exist_ok=True)
+        tracks_fh = open(config.save_tracks, "w", encoding="utf-8")
+
     frame_idx = 0
     try:
         while True:
@@ -101,44 +120,28 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
             if not ok:
                 break
             frame_idx += 1
-            if (frame_idx - 1) % step:  # --frame-step: skip frames (decoded but not processed)
-                continue
-            results = model.track(
-                frame,
-                conf=config.conf,
-                imgsz=config.imgsz,
-                classes=list(config.classes),
-                persist=True,
-                verbose=False,
-                tracker=config.tracker,
-            )
-            boxes = results[0].boxes if results else None
-            if boxes is not None and len(boxes):
-                xyxy = boxes.xyxy.cpu().numpy().astype(int)
-                cls_ids = boxes.cls.cpu().numpy().astype(int)
+            if replay is not None:
+                if frame_idx not in replay:  # replay uses the frame indices of the file
+                    continue
+                tracks = [(t["id"], t["cls"], t["name"], t.get("conf", 0.0), t["box"])
+                          for t in replay[frame_idx]]
+            else:
+                if (frame_idx - 1) % step:  # --frame-step: skip frames (decoded but not processed)
+                    continue
+                tracks = _detect(model, frame, config, blurrer)
+                if tracks_fh is not None:
+                    write_frame_tracks(tracks_fh, frame_idx, [track_record(*t) for t in tracks])
+            for track_id, _cls_id, cls_name, _conf, box in tracks:
+                x1, y1, x2, y2 = (int(v) for v in box)
+                anchor = ((x1 + x2) // 2, y2)  # bottom-center ("feet" / wheels)
+                draw_track(frame, (x1, y1, x2, y2), int(track_id), cls_name, anchor)
+                for line_name, direction in counter.update(int(track_id), cls_name, anchor, frame_idx):
+                    logger.info("Frame %d: #%d %s crossed %s (%s)",
+                                frame_idx, track_id, cls_name, line_name, direction)
 
-                # Blur before drawing so overlays stay sharp. This also covers
-                # frames where the tracker returns detections without IDs.
-                if blurrer is not None:
-                    person_boxes = xyxy[cls_ids == PERSON_CLASS_ID]
-                    if len(person_boxes):
-                        blurrer.blur_in_boxes(frame, person_boxes)
-
-            if boxes is not None and len(boxes) and boxes.id is not None:
-                ids = boxes.id.cpu().numpy().astype(int)
-                for box, track_id, cls_id in zip(xyxy, ids, cls_ids):
-                    x1, y1, x2, y2 = (int(v) for v in box)
-                    cls_name = config.class_name(int(cls_id), model.names)
-                    anchor = ((x1 + x2) // 2, y2)  # bottom-center ("feet" / wheels)
-                    draw_track(frame, (x1, y1, x2, y2), int(track_id), cls_name, anchor)
-                    for line_name, direction in counter.update(int(track_id), cls_name, anchor, frame_idx):
-                        logger.info("Frame %d: #%d %s crossed %s (%s)",
-                                    frame_idx, track_id, cls_name, line_name, direction)
-
-            draw_counting_lines(frame, counter.lines)
-            draw_hud(frame, counter.lines, class_order)
-            if frame.shape[1] != w or frame.shape[0] != h:  # writer silently drops mismatched frames
-                frame = cv2.resize(frame, (w, h))
+            frame = compose_frame(frame, counter.lines, class_order, config.layout)
+            if frame.shape[1] != out_w or frame.shape[0] != out_h:  # writer silently drops mismatched frames
+                frame = cv2.resize(frame, (out_w, out_h))
             out.write(frame)
 
             if total > 0 and frame_idx % 100 == 0:
@@ -154,6 +157,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     finally:
         cap.release()
         out.release()
+        if tracks_fh is not None:
+            tracks_fh.close()
         if config.display:
             cv2.destroyAllWindows()
 
@@ -161,3 +166,37 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     for line_name, per_class in counter.summary().items():
         logger.info("%s: %s", line_name, per_class)
     return counter
+
+
+def _detect(model, frame, config: ProcessingConfig, blurrer) -> list:
+    """Run detection + tracking on one frame (blurring person boxes if asked).
+
+    Returns:
+        ``(id, cls_id, cls_name, conf, box)`` for detections that have a tracker ID.
+    """
+    results = model.track(
+        frame,
+        conf=config.conf,
+        imgsz=config.imgsz,
+        classes=list(config.classes),
+        persist=True,
+        verbose=False,
+        tracker=config.tracker,
+    )
+    boxes = results[0].boxes if results else None
+    if boxes is None or not len(boxes):
+        return []
+    xyxy = boxes.xyxy.cpu().numpy().astype(int)
+    cls_ids = boxes.cls.cpu().numpy().astype(int)
+    # Blur before drawing so overlays stay sharp. This also covers
+    # frames where the tracker returns detections without IDs.
+    if blurrer is not None:
+        person_boxes = xyxy[cls_ids == PERSON_CLASS_ID]
+        if len(person_boxes):
+            blurrer.blur_in_boxes(frame, person_boxes)
+    if boxes.id is None:
+        return []
+    ids = boxes.id.cpu().numpy().astype(int)
+    confs = boxes.conf.cpu().numpy()
+    return [(int(i), int(c), config.class_name(int(c), model.names), float(cf), b)
+            for b, i, c, cf in zip(xyxy, ids, cls_ids, confs)]

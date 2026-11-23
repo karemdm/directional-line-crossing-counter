@@ -17,7 +17,8 @@ command-line interface are both included.
 - Tracks the COCO classes person, car, motorcycle, bus and truck (configurable).
 - Strict segment-to-segment crossing test: objects passing beside the end of a line are not counted.
 - Direction (IN / OUT) from the sign of a 2D cross product; each track ID counted at most once per line.
-- Per-line, per-class IN/OUT counts in a translucent on-frame HUD.
+- Per-line, per-class IN/OUT counts in a side panel next to the video (nothing hides the scene), with a count badge and a distinct color per line; `--layout overlay` keeps the old on-frame HUD.
+- Optional track export (`--save-tracks`) and re-rendering from it (`--replay-tracks`) without running the detector again.
 - Frames are written as they are processed, so a run stopped early still leaves a playable video.
 - Optional, best-effort face blurring inside person boxes.
 - Tkinter launcher (3-step flow) or headless CLI (`--lines` + `--no-display`).
@@ -36,7 +37,7 @@ flowchart TD
     G -- no --> J
     G -- yes --> H["Side test (cross product)<br/>→ IN / OUT"]
     H --> I["Count once per ID per line"]
-    I --> J["Draw boxes, lines, HUD"]
+    I --> J["Draw boxes, lines, badges, side panel"]
     J --> K["Write frame to &lt;name&gt;_proc.mp4<br/>+ live preview"]
 ```
 
@@ -87,7 +88,7 @@ Example outputs produced by this project (re-encoded to H.264, max 1920 px wide,
 
 | File | Content |
 |---|---|
-| [`results/shinjuku_line_count.mp4`](results/shinjuku_line_count.mp4) | Busy intersection with several counting lines; per-line IN/OUT counts for people and vehicles in the HUD. |
+| [`results/shinjuku_line_count.mp4`](results/shinjuku_line_count.mp4) | Busy intersection with several counting lines; per-line IN/OUT counts for people and vehicles in the side panel. |
 
 Source footage and attribution: see [results/README.md](results/README.md).
 
@@ -164,6 +165,9 @@ time and compare the counts on a short clip you have verified by eye.
 | `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
 | `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
 | `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
+| `--layout` | `side` | `side` adds a dark panel with the counts to the right of the video (the output is wider); `overlay` draws the counts over the video. |
+| `--save-tracks` | none | Write the tracks of every processed frame (id, class, confidence, box) to a JSON Lines file. |
+| `--replay-tracks` | none | Skip detection and tracking and re-render from a file written by `--save-tracks` (frame step is taken from the file; face blur is not applied). |
 | `--blur-faces` | off | Blur faces detected inside person boxes. |
 | `--face-model` | `weights/face_yolov8m.pt` | Face detector weights for `--blur-faces`. |
 | `--no-display` | off | Disable the live preview (requires `--lines`). |
@@ -180,12 +184,12 @@ blur kernel `51x51`, blur sigma `30`.
 
 ## Output
 
-- `<name>_proc.mp4` (MP4V codec, same resolution and frame rate as the input) with:
+- `<name>_proc.mp4` (MP4V codec, same frame rate as the input; with the default `--layout side` the frame is the original plus a panel on the right) with:
   - corner-style boxes labelled `#<track id> <class>` and the bottom-center anchor point,
-  - the counting lines and their names,
-  - a translucent HUD with one row per line, e.g. `Line_1: Person[3 IN, 1 OUT]  Car[0 IN, 2 OUT]` (only classes with at least one crossing are shown).
+  - the counting lines, each in its own color, with a small semi-transparent badge near the line showing its name and totals, e.g. `Line_4  12 in / 8 out`,
+  - a side panel titled "Line counts" with one compact block per line (color swatch, name, then per-class counts such as `Person 12 in / 8 out   Car 3 in / 1 out`; only classes with a crossing are listed, otherwise `no crossings yet`). The font shrinks as needed so many lines fit, and if they still do not fit, a dim `+N more lines` row is shown; the panel ends with the total in/out over all classes. Class names are shown exactly as the model names them. With `--layout overlay` the counts are drawn over the video instead.
 - Log messages for every counted crossing and a final per-line, per-class summary.
-- Optionally, a JSON lines file (`--save-lines`).
+- Optionally, a JSON lines file (`--save-lines`) and a tracks file (`--save-tracks`).
 
 ## Project structure
 
@@ -210,7 +214,8 @@ directional-line-crossing-counter/
     counter.py       # CountingLine, LineCounter (stdlib only)
     lines_io.py      # JSON load/save of lines (stdlib only)
     line_editor.py   # interactive OpenCV line drawing
-    drawing.py       # corner boxes, lines, HUD
+    drawing.py       # corner boxes, lines, badges, side panel/HUD
+    tracks_io.py     # JSONL save/load of tracks (stdlib only)
     privacy.py       # FaceBlurrer
     pipeline.py      # processing loop
   tests/
@@ -227,7 +232,6 @@ Run the tests with `pytest` (they only need the standard library).
 - Each track ID is counted once per line: an object that crosses, returns and crosses again is counted only the first time.
 - The class of a count is the class detected in the crossing frame; class flicker (e.g. car/truck) can move counts between classes.
 - An anchor landing exactly on a line is treated as being on the negative side by the strict CCW test, so the crossing is counted on the step that enters or leaves the positive side; exactly at a line endpoint the result is asymmetric (see [docs](docs/how-it-works.md#edge-cases)).
-- The HUD panel has a fixed width; many classes or long line names can overflow it.
 - No perspective correction: lines are drawn in image space.
 - Face blurring is optional and **best-effort**: faces the face detector misses, and faces outside detected person boxes, are not blurred. Do not rely on it as the only anonymisation measure; review the output before sharing it and follow the privacy rules that apply where the video was recorded.
 - Processing at `imgsz 2048` is slow on CPU (see `--frame-step` and "Small or distant people").
