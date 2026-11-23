@@ -84,13 +84,32 @@ Place the model weights in `weights/` (see [weights/README.md](weights/README.md
 
 ## Results
 
-Example outputs produced by this project (re-encoded to H.264, max 1920 px wide, no audio):
+Example outputs produced by this project (re-encoded to H.264, no audio):
 
 | File | Content |
 |---|---|
 | [`results/shinjuku_line_count.mp4`](results/shinjuku_line_count.mp4) | Busy intersection with several counting lines; per-line IN/OUT counts for people and vehicles in the side panel. |
+| [`results/shinjuku_90s_counted.mp4`](results/shinjuku_90s_counted.mp4) | Shinjuku crossing live webcam, 90 s, 12 lines. |
+| [`results/shinjuku_3min_counted.mp4`](results/shinjuku_3min_counted.mp4) | Same webcam, 3 min, 12 lines. |
+| [`results/abbey_road_3min_counted.mp4`](results/abbey_road_3min_counted.mp4) | Abbey Road crossing live webcam, 3 min, 4 lines. |
 
-Source footage and attribution: see [results/README.md](results/README.md).
+For the three live-webcam runs the inputs are in [`samples/`](samples/README.md) and the repository also keeps the tracks (`*_tracks.jsonl`) and the final per-line counts (`*_counts.json`), with the exact command and a per-line table in [results/README.md](results/README.md). Counts depend on detection and tracking quality; people far from the camera are small and are easily missed.
+
+Source footage and attribution: see [results/README.md](results/README.md) and [samples/README.md](samples/README.md).
+
+## Try it
+
+Re-render a result from its saved tracks (no detector, no GPU, same counts):
+
+```bash
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \n    --replay-tracks results/abbey_road_3min_tracks.jsonl --output outputs/abbey_road_replay.mp4 \n    --save-counts outputs/abbey_road_counts.json
+```
+
+Or run the detector yourself on a sample (slow without a GPU):
+
+```bash
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \n    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid_static.yaml --frame-step 3 \n    --output outputs/abbey_road_3min_counted.mp4
+```
 
 ## Usage
 
@@ -142,6 +161,7 @@ line-counter --input video.mp4 --lines lines.json --no-display \
 - **Larger input size:** `--imgsz 1920` to `2560` for 1080p wide shots, so small people are not shrunk away before detection.
 - **Lower confidence:** `--conf` around `0.1` to `0.2` keeps weak detections of small people without flooding the tracker with false ones.
 - **Longer-memory tracker:** `--tracker configs/botsort_reid.yaml` keeps lost tracks for about 3 s (at 30 fps), uses lower thresholds for weak detections and re-identifies people by appearance. `configs/bytetrack_long.yaml` is a lighter alternative without ReID.
+- **Fixed camera:** `configs/botsort_reid_static.yaml` is the same tracker without camera-motion compensation. On a camera that does not move this skips the costly global-motion step at no loss, so it is the better choice for street webcams; the results in `results/` use it.
 - **Fewer frames:** `--frame-step 2` (or 3) processes every Nth frame and writes the output at fps/N, which keeps long videos feasible at a large `--imgsz`. Keep it low for fast movers: people must not travel too far between processed frames.
 - **Duplicate crossings (optional):** if ID switches double-count the same person at a line, try `--cooldown-frames 15 --cooldown-px 40`. It is off by default because it can also hide two real people crossing side by side in a crowd.
 
@@ -161,13 +181,14 @@ time and compare the counts on a short clip you have verified by eye.
 | `--conf` | `0.01` | Detection confidence threshold (see note below). |
 | `--imgsz` | `2048` | Inference image size. |
 | `--classes` | `0 2 3 5 7` | COCO class IDs (person, car, motorcycle, bus, truck). |
-| `--tracker` | `botsort.yaml` | Ultralytics tracker config (`bytetrack.yaml` also works; ready-made `configs/botsort_reid.yaml` and `configs/bytetrack_long.yaml` for small or distant people). |
+| `--tracker` | `botsort.yaml` | Ultralytics tracker config (`bytetrack.yaml` also works; ready-made `configs/botsort_reid.yaml`, `configs/botsort_reid_static.yaml` (fixed camera) and `configs/bytetrack_long.yaml` for small or distant people). |
 | `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
 | `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
 | `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
 | `--layout` | `side` | `side` adds a dark panel with the counts to the right of the video (the output is wider); `overlay` draws the counts over the video. |
 | `--save-tracks` | none | Write the tracks of every processed frame (id, class, confidence, box) to a JSON Lines file. |
 | `--replay-tracks` | none | Skip detection and tracking and re-render from a file written by `--save-tracks` (frame step is taken from the file; face blur is not applied). |
+| `--save-counts` | none | Write the final per-line, per-class IN/OUT counts to a JSON file when processing ends (also with `--replay-tracks`). |
 | `--blur-faces` | off | Blur faces detected inside person boxes. |
 | `--face-model` | `weights/face_yolov8m.pt` | Face detector weights for `--blur-faces`. |
 | `--no-display` | off | Disable the live preview (requires `--lines`). |
@@ -189,7 +210,7 @@ blur kernel `51x51`, blur sigma `30`.
   - the counting lines, each in its own color, with a small semi-transparent badge near the line showing its name and totals, e.g. `Line_4  12 in / 8 out`,
   - a side panel titled "Line counts" with one compact block per line (color swatch, name, then per-class counts such as `Person 12 in / 8 out   Car 3 in / 1 out`; only classes with a crossing are listed, otherwise `no crossings yet`). The font shrinks as needed so many lines fit, and if they still do not fit, a dim `+N more lines` row is shown; the panel ends with the total in/out over all classes. Class names are shown exactly as the model names them. With `--layout overlay` the counts are drawn over the video instead.
 - Log messages for every counted crossing and a final per-line, per-class summary.
-- Optionally, a JSON lines file (`--save-lines`) and a tracks file (`--save-tracks`).
+- Optionally, a lines file (`--save-lines`), a tracks file (`--save-tracks`) and a counts file (`--save-counts`): JSON with the input name, `mode` (`detect` or `replay`), the main settings, the lines and the final counts as `{line: {class: {"IN": n, "OUT": n}}}`.
 
 ## Project structure
 
@@ -199,10 +220,14 @@ directional-line-crossing-counter/
   requirements.txt
   pyproject.toml
   configs/botsort_reid.yaml    # BoT-SORT + ReID, long buffer, for small people
+  configs/botsort_reid_static.yaml  # same, without camera-motion compensation (fixed cameras)
   configs/bytetrack_long.yaml  # ByteTrack with a long buffer
   docs/how-it-works.md
   docs/assets/demo.gif
-  results/README.md  # example output video and source notes
+  results/README.md  # example outputs: videos, tracks, counts, commands and source notes
+  results/*.mp4, *_tracks.jsonl, *_counts.json
+  samples/README.md  # input clips and the lines files that go with them
+  samples/*.mp4, *_lines.json
   weights/README.md
   src/line_counter/
     __init__.py
@@ -216,12 +241,16 @@ directional-line-crossing-counter/
     line_editor.py   # interactive OpenCV line drawing
     drawing.py       # corner boxes, lines, badges, side panel/HUD
     tracks_io.py     # JSONL save/load of tracks (stdlib only)
+    counts_io.py     # final counts report as JSON (stdlib only)
     privacy.py       # FaceBlurrer
     pipeline.py      # processing loop
   tests/
     test_geometry.py
     test_counter.py
     test_cli.py
+    test_drawing.py
+    test_tracks_io.py
+    test_counts_io.py
 ```
 
 Run the tests with `pytest` (they only need the standard library).

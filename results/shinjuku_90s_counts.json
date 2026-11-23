@@ -1,0 +1,444 @@
+{
+  "input": "shinjuku_90s.mp4",
+  "mode": "detect",
+  "settings": {
+    "model": "yolov8m.pt",
+    "conf": 0.15,
+    "imgsz": 1920,
+    "classes": [
+      0,
+      2,
+      3,
+      5,
+      7
+    ],
+    "tracker": "botsort_reid_static.yaml",
+    "frame_step": 3,
+    "cooldown_frames": 0,
+    "cooldown_px": 40.0
+  },
+  "lines": [
+    {
+      "name": "Line_1",
+      "points": [
+        [
+          145,
+          534
+        ],
+        [
+          3,
+          617
+        ]
+      ]
+    },
+    {
+      "name": "Line_2",
+      "points": [
+        [
+          3,
+          972
+        ],
+        [
+          240,
+          844
+        ]
+      ]
+    },
+    {
+      "name": "Line_3",
+      "points": [
+        [
+          529,
+          837
+        ],
+        [
+          829,
+          1078
+        ]
+      ]
+    },
+    {
+      "name": "Line_4",
+      "points": [
+        [
+          1228,
+          274
+        ],
+        [
+          1849,
+          464
+        ]
+      ]
+    },
+    {
+      "name": "Line_5",
+      "points": [
+        [
+          1125,
+          214
+        ],
+        [
+          1183,
+          182
+        ]
+      ]
+    },
+    {
+      "name": "Line_6",
+      "points": [
+        [
+          970,
+          150
+        ],
+        [
+          905,
+          180
+        ]
+      ]
+    },
+    {
+      "name": "Line_7",
+      "points": [
+        [
+          652,
+          184
+        ],
+        [
+          747,
+          194
+        ]
+      ]
+    },
+    {
+      "name": "Line_8",
+      "points": [
+        [
+          190,
+          382
+        ],
+        [
+          240,
+          418
+        ]
+      ]
+    },
+    {
+      "name": "Line_9",
+      "points": [
+        [
+          1223,
+          276
+        ],
+        [
+          527,
+          832
+        ]
+      ]
+    },
+    {
+      "name": "Line_10",
+      "points": [
+        [
+          130,
+          540
+        ],
+        [
+          246,
+          842
+        ]
+      ]
+    },
+    {
+      "name": "Line_11",
+      "points": [
+        [
+          245,
+          421
+        ],
+        [
+          748,
+          201
+        ]
+      ]
+    },
+    {
+      "name": "Line_12",
+      "points": [
+        [
+          902,
+          180
+        ],
+        [
+          1112,
+          216
+        ]
+      ]
+    }
+  ],
+  "counts": {
+    "Line_1": {
+      "person": {
+        "IN": 1,
+        "OUT": 12
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_2": {
+      "person": {
+        "IN": 7,
+        "OUT": 22
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_3": {
+      "person": {
+        "IN": 49,
+        "OUT": 47
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_4": {
+      "person": {
+        "IN": 32,
+        "OUT": 41
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_5": {
+      "person": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 1,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_6": {
+      "person": {
+        "IN": 0,
+        "OUT": 1
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_7": {
+      "person": {
+        "IN": 3,
+        "OUT": 5
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_8": {
+      "person": {
+        "IN": 8,
+        "OUT": 9
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_9": {
+      "person": {
+        "IN": 5,
+        "OUT": 5
+      },
+      "car": {
+        "IN": 25,
+        "OUT": 11
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 1
+      },
+      "bus": {
+        "IN": 1,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 1,
+        "OUT": 0
+      }
+    },
+    "Line_10": {
+      "person": {
+        "IN": 1,
+        "OUT": 2
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 5
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 1
+      }
+    },
+    "Line_11": {
+      "person": {
+        "IN": 2,
+        "OUT": 0
+      },
+      "car": {
+        "IN": 12,
+        "OUT": 24
+      },
+      "motorcycle": {
+        "IN": 1,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 1,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 1,
+        "OUT": 0
+      }
+    },
+    "Line_12": {
+      "person": {
+        "IN": 4,
+        "OUT": 1
+      },
+      "car": {
+        "IN": 10,
+        "OUT": 11
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 1
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 2
+      }
+    }
+  }
+}

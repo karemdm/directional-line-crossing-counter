@@ -1,0 +1,164 @@
+{
+  "input": "abbey_road_3min.mp4",
+  "mode": "detect",
+  "settings": {
+    "model": "yolov8m.pt",
+    "conf": 0.15,
+    "imgsz": 1920,
+    "classes": [
+      0,
+      2,
+      3,
+      5,
+      7
+    ],
+    "tracker": "botsort_reid_static.yaml",
+    "frame_step": 3,
+    "cooldown_frames": 0,
+    "cooldown_px": 40.0
+  },
+  "lines": [
+    {
+      "name": "Line_1",
+      "points": [
+        [
+          1412,
+          392
+        ],
+        [
+          1338,
+          474
+        ]
+      ]
+    },
+    {
+      "name": "Line_2",
+      "points": [
+        [
+          889,
+          324
+        ],
+        [
+          703,
+          397
+        ]
+      ]
+    },
+    {
+      "name": "Line_3",
+      "points": [
+        [
+          1358,
+          481
+        ],
+        [
+          738,
+          390
+        ]
+      ]
+    },
+    {
+      "name": "Line_4",
+      "points": [
+        [
+          1030,
+          842
+        ],
+        [
+          1581,
+          929
+        ]
+      ]
+    }
+  ],
+  "counts": {
+    "Line_1": {
+      "person": {
+        "IN": 9,
+        "OUT": 14
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_2": {
+      "person": {
+        "IN": 15,
+        "OUT": 13
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    },
+    "Line_3": {
+      "person": {
+        "IN": 6,
+        "OUT": 6
+      },
+      "car": {
+        "IN": 12,
+        "OUT": 14
+      },
+      "motorcycle": {
+        "IN": 1,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 1,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 3,
+        "OUT": 0
+      }
+    },
+    "Line_4": {
+      "person": {
+        "IN": 6,
+        "OUT": 5
+      },
+      "car": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "motorcycle": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "bus": {
+        "IN": 0,
+        "OUT": 0
+      },
+      "truck": {
+        "IN": 0,
+        "OUT": 0
+      }
+    }
+  }
+}
