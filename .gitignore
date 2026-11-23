@@ -16,9 +16,12 @@ outputs/
 runs/
 *.mp4
 !results/*.mp4
+!samples/*.mp4
 *.avi
 *.mov
 *.mkv
+*.jsonl
+!results/*.jsonl
 
 # Notebooks / editors
 .ipynb_checkpoints/
