@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -65,55 +65,98 @@ def draw_counting_lines(img: np.ndarray, lines: Iterable[CountingLine]) -> None:
         img: Frame to draw on (modified in place).
         lines: Counting lines in frame coordinates.
     """
+    k = max(0.5, img.shape[0] / 720)  # same scale as the HUD: readable on 1080p and above
+    th = max(2, round(2 * k))
     for line in lines:
-        cv2.line(img, line.p1, line.p2, LINE_COLOR, 2)
-        cv2.putText(img, line.name, (line.p1[0], line.p1[1] - 8), FONT, 0.6, LINE_COLOR, 2)
+        cv2.line(img, line.p1, line.p2, LINE_COLOR, th)
+        cv2.putText(img, line.name, (line.p1[0], line.p1[1] - round(8 * k)), FONT, 0.6 * k, LINE_COLOR, th)
 
 
-def _put(img: np.ndarray, text: str, x: int, y: int, color: Color) -> None:
-    cv2.putText(img, text, (x, y), FONT, 0.5, color, 1)
+Segment = Tuple[str, Color]
+
+
+def _text_width(text: str, scale: float, thickness: int) -> int:
+    return cv2.getTextSize(text, FONT, scale, thickness)[0][0]
+
+
+def _entry_segments(cls_name: str, data: Dict[str, int]) -> List[Segment]:
+    return [
+        (f"{cls_name}[", MUTED_COLOR),
+        (f"{data[IN]} IN", IN_COLOR),
+        (", ", MUTED_COLOR),
+        (f"{data[OUT]} OUT", OUT_COLOR),
+        ("]", MUTED_COLOR),
+    ]
 
 
 def draw_hud(img: np.ndarray, lines: Sequence[CountingLine], class_order: Iterable[str]) -> None:
     """Draw a translucent panel with per-line, per-class IN/OUT counts.
 
     Only classes with at least one crossing on a line are shown on that row,
-    formatted as ``Line_1: Person[3 IN, 1 OUT]  Car[0 IN, 2 OUT]``.
+    formatted as ``Line_1: Person[3 IN, 1 OUT]  Car[0 IN, 2 OUT]``. Text is
+    measured with ``cv2.getTextSize`` and everything scales with the frame
+    height (unchanged at 720p). The panel is as wide as its widest row; entries
+    that do not fit the frame width wrap onto an indented continuation row.
 
     Args:
         img: Frame to draw on (modified in place).
         lines: Counting lines with their counts.
         class_order: Class names in display order.
     """
+    frame_h, frame_w = img.shape[:2]
     order = list(class_order)
-    panel_height = 30 + len(lines) * 25
-    # Same result as blending a black rectangle at 60% opacity, but only the
-    # panel region is touched instead of copying the whole frame every time.
-    panel = img[10:panel_height + 1, 10:551]
-    if panel.size:
-        img[10:panel_height + 1, 10:551] = cv2.addWeighted(panel, 0.4, panel, 0.0, 0)
+    k = max(frame_h / 720.0, 0.5)
+    font_scale = 0.5 * k
+    thick = max(1, round(k))
+    margin = round(10 * k)
+    pad = round(10 * k)
+    row_h = round(22 * k)
+    gap = _text_width("  ", font_scale, thick)
+    max_row_w = max(frame_w - 2 * margin - 2 * pad, 1)
 
-    text_y = 30
+    # Layout: each row is (x_offset, [(text, color, x), ...]).
+    rows: List[List[Tuple[str, Color, int]]] = []
+    widest = 0
     for line in lines:
-        x = 20
         title = f"{line.name}: "
-        _put(img, title, x, text_y, TEXT_COLOR)
-        x += len(title) * 9
+        title_w = _text_width(title, font_scale, thick)
+        indent = min(title_w, max_row_w // 2)
+        row: List[Tuple[str, Color, int]] = [(title, TEXT_COLOR, 0)]
+        x = title_w
+        has_entry = False
         for cls_name in order:
             data = line.counts.get(cls_name)
             if not data or (data[IN] == 0 and data[OUT] == 0):
                 continue
-            label_cls = f"{cls_name}["
-            _put(img, label_cls, x, text_y, MUTED_COLOR)
-            x += len(label_cls) * 8
-            label_in = f"{data[IN]} IN"
-            _put(img, label_in, x, text_y, IN_COLOR)
-            x += len(label_in) * 8 + 4
-            _put(img, ",", x - 3, text_y, MUTED_COLOR)
-            x += 8
-            label_out = f"{data[OUT]} OUT"
-            _put(img, label_out, x, text_y, OUT_COLOR)
-            x += len(label_out) * 8 + 4
-            _put(img, "]", x - 2, text_y, MUTED_COLOR)
-            x += 15
-        text_y += 22
+            segs = _entry_segments(cls_name, data)
+            widths = [_text_width(t, font_scale, thick) for t, _ in segs]
+            entry_w = sum(widths)
+            if has_entry and x + entry_w > max_row_w:
+                widest = max(widest, x)
+                rows.append(row)
+                row = []
+                x = indent
+                has_entry = False
+            for (text, color), w in zip(segs, widths):
+                row.append((text, color, x))
+                x += w
+            x += gap
+            has_entry = True
+        widest = max(widest, x - (gap if has_entry else 0))
+        rows.append(row)
+
+    panel_w = min(widest + 2 * pad, frame_w - 2 * margin)
+    panel_h = round(20 * k) + len(rows) * row_h
+    y0, x0 = margin, margin
+    y1, x1 = min(y0 + panel_h, frame_h), min(x0 + panel_w, frame_w)
+    # Same result as blending a black rectangle at 60% opacity, but only the
+    # panel region is touched instead of copying the whole frame every time.
+    panel = img[y0:y1, x0:x1]
+    if panel.size:
+        img[y0:y1, x0:x1] = cv2.addWeighted(panel, 0.4, panel, 0.0, 0)
+
+    text_y = y0 + round(20 * k)
+    for row in rows:
+        for text, color, x in row:
+            cv2.putText(img, text, (x0 + pad + x, text_y), FONT, font_scale, color, thick)
+        text_y += row_h
