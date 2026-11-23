@@ -75,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--replay-tracks", metavar="PATH.jsonl",
                    help="Skip detection/tracking and re-render from a file written by "
                         "--save-tracks (face blur is not applied in replay).")
+    p.add_argument("--save-counts", metavar="PATH.json",
+                   help="Write the final per-line, per-class IN/OUT counts (plus input name, "
+                        "lines and main settings) to this JSON file when processing ends.")
     p.add_argument("--blur-faces", action="store_true",
                    help="Blur faces detected inside person boxes (best-effort).")
     p.add_argument("--face-model", default=_DEFAULTS.face_model,
@@ -172,5 +175,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error("--save-tracks and --replay-tracks cannot be used together")
 
     output = args.output or default_output_path(args.input)
-    process_video(args.input, output, lines, config)
+    counter = process_video(args.input, output, lines, config)
+    if args.save_counts:
+        from line_counter.counts_io import build_report, save_report
+
+        save_report(args.save_counts, build_report(args.input, lines, counter.summary(), config))
+        logger.info("Saved counts to %s", args.save_counts)
     return 0

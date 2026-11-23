@@ -168,6 +168,7 @@ time and compare the counts on a short clip you have verified by eye.
 | `--layout` | `side` | `side` adds a dark panel with the counts to the right of the video (the output is wider); `overlay` draws the counts over the video. |
 | `--save-tracks` | none | Write the tracks of every processed frame (id, class, confidence, box) to a JSON Lines file. |
 | `--replay-tracks` | none | Skip detection and tracking and re-render from a file written by `--save-tracks` (frame step is taken from the file; face blur is not applied). |
+| `--save-counts` | none | Write the final per-line, per-class IN/OUT counts to a JSON file when processing ends (also with `--replay-tracks`). |
 | `--blur-faces` | off | Blur faces detected inside person boxes. |
 | `--face-model` | `weights/face_yolov8m.pt` | Face detector weights for `--blur-faces`. |
 | `--no-display` | off | Disable the live preview (requires `--lines`). |
@@ -189,7 +190,7 @@ blur kernel `51x51`, blur sigma `30`.
   - the counting lines, each in its own color, with a small semi-transparent badge near the line showing its name and totals, e.g. `Line_4  12 in / 8 out`,
   - a side panel titled "Line counts" with one compact block per line (color swatch, name, then per-class counts such as `Person 12 in / 8 out   Car 3 in / 1 out`; only classes with a crossing are listed, otherwise `no crossings yet`). The font shrinks as needed so many lines fit, and if they still do not fit, a dim `+N more lines` row is shown; the panel ends with the total in/out over all classes. Class names are shown exactly as the model names them. With `--layout overlay` the counts are drawn over the video instead.
 - Log messages for every counted crossing and a final per-line, per-class summary.
-- Optionally, a JSON lines file (`--save-lines`) and a tracks file (`--save-tracks`).
+- Optionally, a lines file (`--save-lines`), a tracks file (`--save-tracks`) and a counts file (`--save-counts`): JSON with the input name, `mode` (`detect` or `replay`), the main settings, the lines and the final counts as `{line: {class: {"IN": n, "OUT": n}}}`.
 
 ## Project structure
 
