@@ -102,13 +102,17 @@ Source footage and attribution: see [results/README.md](results/README.md) and [
 Re-render a result from its saved tracks (no detector, no GPU, same counts):
 
 ```bash
-line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \n    --replay-tracks results/abbey_road_3min_tracks.jsonl --output outputs/abbey_road_replay.mp4 \n    --save-counts outputs/abbey_road_counts.json
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \
+    --replay-tracks results/abbey_road_3min_tracks.jsonl --output outputs/abbey_road_replay.mp4 \
+    --save-counts outputs/abbey_road_counts.json
 ```
 
 Or run the detector yourself on a sample (slow without a GPU):
 
 ```bash
-line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \n    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid_static.yaml --frame-step 3 \n    --output outputs/abbey_road_3min_counted.mp4
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \
+    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid_static.yaml --frame-step 3 \
+    --output outputs/abbey_road_3min_counted.mp4
 ```
 
 ## Usage
