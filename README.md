@@ -102,13 +102,13 @@ Source footage and attribution: see [results/README.md](results/README.md) and [
 Re-render a result from its saved tracks (no detector, no GPU, same counts):
 
 ```bash
-line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display     --replay-tracks results/abbey_road_3min_tracks.jsonl --output outputs/abbey_road_replay.mp4     --save-counts outputs/abbey_road_counts.json
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \n    --replay-tracks results/abbey_road_3min_tracks.jsonl --output outputs/abbey_road_replay.mp4 \n    --save-counts outputs/abbey_road_counts.json
 ```
 
 Or run the detector yourself on a sample (slow without a GPU):
 
 ```bash
-line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display     --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid_static.yaml --frame-step 3     --output outputs/abbey_road_3min_counted.mp4
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display \n    --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid_static.yaml --frame-step 3 \n    --output outputs/abbey_road_3min_counted.mp4
 ```
 
 ## Usage
@@ -161,6 +161,7 @@ line-counter --input video.mp4 --lines lines.json --no-display \
 - **Larger input size:** `--imgsz 1920` to `2560` for 1080p wide shots, so small people are not shrunk away before detection.
 - **Lower confidence:** `--conf` around `0.1` to `0.2` keeps weak detections of small people without flooding the tracker with false ones.
 - **Longer-memory tracker:** `--tracker configs/botsort_reid.yaml` keeps lost tracks for about 3 s (at 30 fps), uses lower thresholds for weak detections and re-identifies people by appearance. `configs/bytetrack_long.yaml` is a lighter alternative without ReID.
+- **Fixed camera:** `configs/botsort_reid_static.yaml` is the same tracker without camera-motion compensation. On a camera that does not move this skips the costly global-motion step at no loss, so it is the better choice for street webcams; the results in `results/` use it.
 - **Fewer frames:** `--frame-step 2` (or 3) processes every Nth frame and writes the output at fps/N, which keeps long videos feasible at a large `--imgsz`. Keep it low for fast movers: people must not travel too far between processed frames.
 - **Duplicate crossings (optional):** if ID switches double-count the same person at a line, try `--cooldown-frames 15 --cooldown-px 40`. It is off by default because it can also hide two real people crossing side by side in a crowd.
 
@@ -180,7 +181,7 @@ time and compare the counts on a short clip you have verified by eye.
 | `--conf` | `0.01` | Detection confidence threshold (see note below). |
 | `--imgsz` | `2048` | Inference image size. |
 | `--classes` | `0 2 3 5 7` | COCO class IDs (person, car, motorcycle, bus, truck). |
-| `--tracker` | `botsort.yaml` | Ultralytics tracker config (`bytetrack.yaml` also works; ready-made `configs/botsort_reid.yaml` and `configs/bytetrack_long.yaml` for small or distant people). |
+| `--tracker` | `botsort.yaml` | Ultralytics tracker config (`bytetrack.yaml` also works; ready-made `configs/botsort_reid.yaml`, `configs/botsort_reid_static.yaml` (fixed camera) and `configs/bytetrack_long.yaml` for small or distant people). |
 | `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
 | `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
 | `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
@@ -219,6 +220,7 @@ directional-line-crossing-counter/
   requirements.txt
   pyproject.toml
   configs/botsort_reid.yaml    # BoT-SORT + ReID, long buffer, for small people
+  configs/botsort_reid_static.yaml  # same, without camera-motion compensation (fixed cameras)
   configs/bytetrack_long.yaml  # ByteTrack with a long buffer
   docs/how-it-works.md
   docs/assets/demo.gif

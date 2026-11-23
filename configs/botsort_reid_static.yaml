@@ -1,6 +1,6 @@
 # BoT-SORT with ReID for a FIXED camera (no camera-motion compensation), small / distant people.
 # Based on ultralytics/cfg/trackers/botsort.yaml; only the keys marked "changed" differ.
-# Usage: line-counter ... --tracker configs/botsort_reid.yaml
+# Usage: line-counter ... --tracker configs/botsort_reid_static.yaml
 
 tracker_type: botsort # (str) Tracker backend: botsort
 track_high_thresh: 0.25 # (float) First-stage match threshold (unchanged)
