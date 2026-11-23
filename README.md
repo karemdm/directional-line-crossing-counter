@@ -84,13 +84,32 @@ Place the model weights in `weights/` (see [weights/README.md](weights/README.md
 
 ## Results
 
-Example outputs produced by this project (re-encoded to H.264, max 1920 px wide, no audio):
+Example outputs produced by this project (re-encoded to H.264, no audio):
 
 | File | Content |
 |---|---|
 | [`results/shinjuku_line_count.mp4`](results/shinjuku_line_count.mp4) | Busy intersection with several counting lines; per-line IN/OUT counts for people and vehicles in the side panel. |
+| [`results/shinjuku_90s_counted.mp4`](results/shinjuku_90s_counted.mp4) | Shinjuku crossing live webcam, 90 s, 12 lines. |
+| [`results/shinjuku_3min_counted.mp4`](results/shinjuku_3min_counted.mp4) | Same webcam, 3 min, 12 lines. |
+| [`results/abbey_road_3min_counted.mp4`](results/abbey_road_3min_counted.mp4) | Abbey Road crossing live webcam, 3 min, 4 lines. |
 
-Source footage and attribution: see [results/README.md](results/README.md).
+For the three live-webcam runs the inputs are in [`samples/`](samples/README.md) and the repository also keeps the tracks (`*_tracks.jsonl`) and the final per-line counts (`*_counts.json`), with the exact command and a per-line table in [results/README.md](results/README.md). Counts depend on detection and tracking quality; people far from the camera are small and are easily missed.
+
+Source footage and attribution: see [results/README.md](results/README.md) and [samples/README.md](samples/README.md).
+
+## Try it
+
+Re-render a result from its saved tracks (no detector, no GPU, same counts):
+
+```bash
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display     --replay-tracks results/abbey_road_3min_tracks.jsonl --output outputs/abbey_road_replay.mp4     --save-counts outputs/abbey_road_counts.json
+```
+
+Or run the detector yourself on a sample (slow without a GPU):
+
+```bash
+line-counter --input samples/abbey_road_3min.mp4 --lines samples/abbey_road_lines.json --no-display     --imgsz 1920 --conf 0.15 --tracker configs/botsort_reid_static.yaml --frame-step 3     --output outputs/abbey_road_3min_counted.mp4
+```
 
 ## Usage
 
@@ -203,7 +222,10 @@ directional-line-crossing-counter/
   configs/bytetrack_long.yaml  # ByteTrack with a long buffer
   docs/how-it-works.md
   docs/assets/demo.gif
-  results/README.md  # example output video and source notes
+  results/README.md  # example outputs: videos, tracks, counts, commands and source notes
+  results/*.mp4, *_tracks.jsonl, *_counts.json
+  samples/README.md  # input clips and the lines files that go with them
+  samples/*.mp4, *_lines.json
   weights/README.md
   src/line_counter/
     __init__.py
@@ -217,12 +239,16 @@ directional-line-crossing-counter/
     line_editor.py   # interactive OpenCV line drawing
     drawing.py       # corner boxes, lines, badges, side panel/HUD
     tracks_io.py     # JSONL save/load of tracks (stdlib only)
+    counts_io.py     # final counts report as JSON (stdlib only)
     privacy.py       # FaceBlurrer
     pipeline.py      # processing loop
   tests/
     test_geometry.py
     test_counter.py
     test_cli.py
+    test_drawing.py
+    test_tracks_io.py
+    test_counts_io.py
 ```
 
 Run the tests with `pytest` (they only need the standard library).
