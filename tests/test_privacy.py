@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from line_counter.privacy import FACE_BATCH_SIZE, FaceBlurrer
+from line_counter.privacy import FACE_BATCH_SIZE, FaceBlurrer, pad_box
 
 
 class _XYXY:
@@ -40,9 +40,10 @@ class FakeFaceModel:
         return [_Res(self.faces) for _ in crops]
 
 
-def make_blurrer(faces):
+def make_blurrer(faces, padding=0.0):
     b = object.__new__(FaceBlurrer)  # skip loading real weights
     b.model, b.conf, b.kernel, b.sigma = FakeFaceModel(faces), 0.3, (9, 9), 3.0
+    b.padding = padding
     return b
 
 
@@ -98,3 +99,18 @@ def test_colour_order_is_preserved():
     frame[..., 0] = 200  # pure blue in BGR
     make_blurrer([[0, 0, 40, 40]]).blur_in_boxes(frame, [(0, 0, 40, 40)])
     assert frame[..., 0].min() == 200 and frame[..., 1:].max() == 0
+
+
+def test_pad_box_grows_and_clips_to_the_image():
+    assert pad_box((20, 20, 40, 60), 0.15, 100, 100) == (17, 14, 43, 66)
+    assert pad_box((2, 2, 20, 20), 0.5, 22, 100) == (0, 0, 22, 29)
+    assert pad_box((10, 10, 30, 30), 0.0, 100, 100) == (10, 10, 30, 30)
+
+
+def test_padding_blurs_a_margin_around_the_face_but_stays_in_the_crop():
+    frame = noisy_frame()
+    before = frame.copy()
+    make_blurrer([[10, 10, 30, 30]], padding=0.25).blur_in_boxes(frame, [(40, 20, 90, 80)])
+    changed = np.argwhere((frame != before).any(axis=2))
+    assert changed[:, 0].min() < 20 + 10 and changed[:, 1].min() < 40 + 10  # margin is blurred
+    assert changed[:, 0].max() < 80 and changed[:, 1].max() < 90  # never past the person box

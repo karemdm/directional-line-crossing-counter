@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Iterable, List, Sequence, Tuple
 
 import cv2
@@ -12,6 +13,24 @@ logger = logging.getLogger(__name__)
 
 #: Maximum number of person crops sent to the face model in one call.
 FACE_BATCH_SIZE = 16
+
+
+def pad_box(box: Sequence[float], padding: float, width: int, height: int) -> Tuple[int, int, int, int]:
+    """Grow a box by ``padding`` times its size on each side, clipped to the image.
+
+    Args:
+        box: ``(x1, y1, x2, y2)``.
+        padding: Fraction of the box width/height added on every side.
+        width: Image width.
+        height: Image height.
+
+    Returns:
+        Integer ``(x1, y1, x2, y2)`` inside ``[0, width] x [0, height]``.
+    """
+    x1, y1, x2, y2 = (float(v) for v in box)
+    px, py = (x2 - x1) * padding, (y2 - y1) * padding
+    return (max(0, int(x1 - px)), max(0, int(y1 - py)),
+            min(width, int(math.ceil(x2 + px))), min(height, int(math.ceil(y2 + py))))
 
 
 class FaceBlurrer:
@@ -25,10 +44,13 @@ class FaceBlurrer:
         conf: Face detection confidence threshold.
         kernel: Gaussian blur kernel size (odd, odd).
         sigma: Gaussian blur sigma.
+        padding: Fraction of the face box width/height added on every side
+            (clipped to the crop) because detector boxes are often tight.
     """
 
     def __init__(self, model_path: str, conf: float = 0.3,
-                 kernel: Tuple[int, int] = (51, 51), sigma: float = 30.0) -> None:
+                 kernel: Tuple[int, int] = (51, 51), sigma: float = 30.0,
+                 padding: float = 0.15) -> None:
         from ultralytics import YOLO
 
         logger.info("Loading face model %s", model_path)
@@ -36,6 +58,7 @@ class FaceBlurrer:
         self.conf = conf
         self.kernel = kernel
         self.sigma = sigma
+        self.padding = padding
 
     def blur_in_box(self, frame: np.ndarray, box: Sequence[int]) -> int:
         """Blur faces found inside one person box, in place.
@@ -84,9 +107,8 @@ class FaceBlurrer:
         """Blur the given face boxes (crop coordinates) inside ``crop``."""
         ch, cw = crop.shape[:2]
         blurred = 0
-        for fx1, fy1, fx2, fy2 in face_boxes.astype(int):
-            fx1, fy1 = max(0, fx1), max(0, fy1)
-            fx2, fy2 = min(cw, fx2), min(ch, fy2)
+        for box in face_boxes:
+            fx1, fy1, fx2, fy2 = pad_box(box, self.padding, cw, ch)
             if fx2 > fx1 and fy2 > fy1:
                 roi = crop[fy1:fy2, fx1:fx2]
                 crop[fy1:fy2, fx1:fx2] = cv2.GaussianBlur(roi, self.kernel, self.sigma)
