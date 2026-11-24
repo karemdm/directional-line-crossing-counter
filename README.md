@@ -163,6 +163,8 @@ line-counter --input video.mp4 --lines lines.json --no-display \
 - **Longer-memory tracker:** `--tracker configs/botsort_reid.yaml` keeps lost tracks for about 3 s (at 30 fps), uses lower thresholds for weak detections and re-identifies people by appearance. `configs/bytetrack_long.yaml` is a lighter alternative without ReID.
 - **Fixed camera:** `configs/botsort_reid_static.yaml` is the same tracker without camera-motion compensation. On a camera that does not move this skips the costly global-motion step at no loss, so it is the better choice for street webcams; the results in `results/` use it.
 - **Fewer frames:** `--frame-step 2` (or 3) processes every Nth frame and writes the output at fps/N, which keeps long videos feasible at a large `--imgsz`. Keep it low for fast movers: people must not travel too far between processed frames.
+- **People standing on a line (optional):** the anchor of a person who stands still on the line jitters across it and can be counted. `--min-cross-distance 0.05` counts a crossing only after the anchor is that fraction of the box height away from the line on the new side. On the Abbey Road audit this removed 6 of 19 false counts without losing a verified one; larger values also removed real crossings (see [the evaluation](docs/how-it-works.md#evaluation-of-the-two-filters)). It is off by default.
+- **Riders (optional):** `--rider-overlap 0.5` does not count a person whose box overlaps a motorcycle (or bicycle) box by that fraction, so a scooter rider detected as person and as motorcycle is counted once. Class 1 (bicycle) is not in the default `--classes`; add it (`--classes 0 1 2 3 5 7`) to use it for bicycles. It is off by default.
 - **Duplicate crossings (optional):** if ID switches double-count the same person at a line, try `--cooldown-frames 15 --cooldown-px 40`. It is off by default because it can also hide two real people crossing side by side in a crowd.
 
 The trade-off is speed: a larger model, a larger `--imgsz` and ReID each make processing
@@ -185,6 +187,8 @@ time and compare the counts on a short clip you have verified by eye.
 | `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
 | `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
 | `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
+| `--min-cross-distance` | `0` (off) | Crossing hysteresis, as a fraction of the box height: count a crossing only when the anchor is at least this far from the line (perpendicular) on the new side and was at least this far on the old side. A slow walker is still counted once the distance is reached. |
+| `--rider-overlap` | `0` (off) | Do not count a person whose box overlaps a bicycle or motorcycle box by at least this fraction of the person box in that frame. The vehicle class (1 or 3) must be in `--classes`; with `--replay-tracks` it must be in the tracks file. |
 | `--layout` | `side` | `side` adds a dark panel with the counts to the right of the video (the output is wider); `overlay` draws the counts over the video. |
 | `--save-tracks` | none | Write the tracks of every processed frame (id, class, confidence, box) to a JSON Lines file. |
 | `--replay-tracks` | none | Skip detection and tracking and re-render from a file written by `--save-tracks` (frame step is taken from the file; face blur is not applied). |
@@ -258,6 +262,8 @@ Run the tests with `pytest` (they only need the standard library).
 ## Limitations
 
 - Counts depend entirely on detection and tracking quality. ID switches after occlusions can cause double counts; missed detections near a line can cause missed counts.
+- Standing on a line: without `--min-cross-distance` a person whose anchor jitters across a line is counted (the main source of false counts in the Abbey Road audit). With it, a track that first appears inside the band, or that only reaches the new side by less than the distance, is not counted, so real crossings can be lost too; neither option was verified beyond the audited videos.
+- `--rider-overlap` removes the person count only when a bicycle or motorcycle box overlaps in the crossing frame; a rider whose vehicle is not detected there is still counted, and a pedestrian walking behind a parked motorcycle can be mistaken for a rider.
 - Each track ID is counted once per line: an object that crosses, returns and crosses again is counted only the first time.
 - The class of a count is the class detected in the crossing frame; class flicker (e.g. car/truck) can move counts between classes.
 - An anchor landing exactly on a line is treated as being on the negative side by the strict CCW test, so the crossing is counted on the step that enters or leaves the positive side; exactly at a line endpoint the result is asymmetric (see [docs](docs/how-it-works.md#edge-cases)).
