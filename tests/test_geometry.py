@@ -63,3 +63,43 @@ def test_endpoint_touching_is_asymmetric() -> None:
     # Documented edge case of the strict CCW test at a line endpoint.
     assert segments_intersect(A, B, (5, 5), (0, 0))       # positive side -> endpoint
     assert not segments_intersect(A, B, (0, 0), (5, 5))   # endpoint -> positive side
+
+
+def test_segment_misses_frame():
+    from line_counter.geometry import segment_misses_frame
+
+    assert not segment_misses_frame((10, 10), (50, 50), 100, 80)
+    assert not segment_misses_frame((-50, 40), (150, 40), 100, 80)   # passes through the frame
+    assert not segment_misses_frame((-5, -5), (5, 5), 100, 80)       # one end inside
+    assert segment_misses_frame((200, 10), (300, 50), 100, 80)       # right of the frame
+    assert segment_misses_frame((-30, -30), (-10, -5), 100, 80)      # above-left
+    assert segment_misses_frame((0, 500), (100, 500), 100, 80)       # below
+    assert segment_misses_frame((-50, 100), (50, 200), 100, 80)      # bbox overlaps only in x, line below
+
+
+def test_segment_misses_frame_diagonal_corner_case():
+    from line_counter.geometry import segment_misses_frame
+
+    # bounding box touches the frame but the segment cuts the corner outside of it
+    assert segment_misses_frame((-100, 50), (50, 200), 100, 80)
+    assert not segment_misses_frame((-100, 50), (50, 20), 100, 80)
+
+
+def test_readme_direction_example():
+    # README: a horizontal line drawn left to right counts a downward move as IN.
+    from line_counter.counter import CountingLine
+
+    line = CountingLine("L", (0, 50), (100, 50))
+    assert line.update(1, "p", (50, 40), (50, 60)) == "IN"
+    assert line.update(2, "p", (50, 60), (50, 40)) == "OUT"
+    # the same line drawn right to left swaps the labels
+    rev = CountingLine("R", (100, 50), (0, 50))
+    assert rev.update(1, "p", (50, 40), (50, 60)) == "OUT"
+
+
+def test_vertical_line_direction():
+    from line_counter.counter import CountingLine
+
+    line = CountingLine("V", (50, 0), (50, 100))  # drawn top -> bottom
+    assert line.update(1, "p", (40, 50), (60, 50)) == "OUT"  # moving right = to the left of the arrow
+    assert line.update(2, "p", (60, 50), (40, 50)) == "IN"

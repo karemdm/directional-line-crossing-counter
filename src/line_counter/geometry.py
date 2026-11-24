@@ -62,3 +62,35 @@ def side_of_line(a: Point, b: Point, p: Point) -> float:
         The signed cross product.
     """
     return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+
+
+def segment_misses_frame(a: Point, b: Point, width: int, height: int) -> bool:
+    """Return True if segment ``ab`` lies completely outside a ``width`` x ``height`` frame.
+
+    Uses Liang-Barsky clipping against the pixel area ``[0, width-1] x [0, height-1]``.
+
+    Args:
+        a: First endpoint.
+        b: Second endpoint.
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+
+    Returns:
+        True if no part of the segment is inside the frame.
+    """
+    x0, y0 = a
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, x0), (dx, width - 1 - x0), (-dy, y0), (dy, height - 1 - y0)):
+        if p == 0:
+            if q < 0:
+                return True
+            continue
+        t = q / p
+        if p < 0:
+            t0 = max(t0, t)
+        else:
+            t1 = min(t1, t)
+        if t0 > t1:
+            return True
+    return False
