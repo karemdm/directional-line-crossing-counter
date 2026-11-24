@@ -295,9 +295,12 @@ suggested value when riders are counted twice.
   percent. The same reviewer judged two of the first reviewer's TP as FP (Line_2
   at 103.2 s, id 547: a walker took the box of a standing man; Line_3 at
   127.2 s, ids 943 and 950: one moped counted as person and as motorcycle), so
-  the precision of the unfiltered 105 counts is a range: 77 to 79 TP, that is
-  about 73 percent (uncertain counted as wrong) to 82 percent (uncertain
-  counted as right).
+  precision is a range: 77 to 79 TP, with the 7 uncertain counted as wrong (low
+  end) or as right (high end). **Without the filter (105 counts, the old
+  behaviour): about 73 to 82 percent. With the default 0.05 (98 counts, the
+  shipped results): about 79 to 87 percent**, because it removed 6 FP and 1
+  uncertain and no TP (6 uncertain remain). Recall is the same in both cases,
+  about 94 to 97.5 percent, since the filter removed no verified TP.
 - *What the 0.05 default removed on Shinjuku 3 min.* All 12 removed crossings on
   Line_7 and a random 10 of the 11 removed on each of Line_4 and Line_11 were
   judged by eye (32 events): 21 were false counts (people standing on the line

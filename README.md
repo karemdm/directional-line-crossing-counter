@@ -299,8 +299,11 @@ Run the tests with `pytest` (`pip install -e .[dev]`; no model or weights are ne
 
 Counts are not ground truth. In a visual check of the Abbey Road run (one video, two
 reviewers, judgement from frame crops, no external ground truth), about 73 to 82
-percent of the counted crossings were real and about 94 to 97.5 percent of the real
-ones were counted. A second check of what the default `--min-cross-distance` removed on
+percent of the 105 crossings counted without the filter were real, and about 79 to 87
+percent of the 98 counted with the default `--min-cross-distance 0.05` (the number that
+applies to the shipped results); about 94 to 97.5 percent of the real crossings were
+counted either way (the filter removed none of the verified ones). The ranges come from
+counting the uncertain cases as wrong or as right. A second check of what the default `--min-cross-distance` removed on
 Shinjuku 3 min found about 5 false counts removed for each real crossing lost.
 Stationary people at a line are the main source of false counts; dense groups are
 undercounted; a rider can count twice (person and motorcycle) unless `--rider-overlap`
