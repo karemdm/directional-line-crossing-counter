@@ -38,7 +38,8 @@ flowchart TD
    the window can be resized or maximised, click coordinates are scaled back to
    the original video resolution:
    `x_orig = x_win * (W_orig / W_win)`, `y_orig = y_win * (H_orig / H_win)`.
-   ENTER or ESC finishes. Lines can also be loaded from a JSON file
+   U or Backspace undoes the last point or line, and the canvas is redrawn when the
+   window is resized. ENTER or ESC finishes. Lines can also be loaded from a JSON file
    (`--lines`) and exported (`--save-lines`).
 2. **Detection and tracking.** Each frame goes through Ultralytics
    `model.track(..., persist=True, tracker="botsort.yaml")`, restricted to the
@@ -135,6 +136,17 @@ two current anchors). This absorbs ID switches that re-create the same
 crossing. The suppressed ID is still marked as counted. Off by default because
 two real people crossing side by side can also be merged.
 
+### 6. Track gap (optional)
+
+A tracker can drop an object and later give the same ID to something at a
+different place. Normally the new position is compared with the last known one
+however old it is, so that jump can look like a crossing. With
+`--max-track-gap S` (seconds, > 0), if the previous position of a track is
+more than `S` seconds (converted to source frames with the video fps) older than
+the current frame, that step is not tested; the position is just refreshed.
+Off by default, so counts do not change unless it is set. It can also hide a
+real crossing by an object that was briefly lost right at the line.
+
 ### Edge cases
 
 - The CCW test is strict, so a point exactly on the line is grouped with the
@@ -165,7 +177,9 @@ two real people crossing side by side can also be merged.
 
 With `--blur-faces`, every detected person box (with or without a track ID)
 is cropped and passed to a separate YOLO face detector (confidence 0.3); the
-crops of one frame are sent to the face model in batches of up to 16. Each detected face region is replaced by a
+crops of one frame are sent to the face model in batches of up to 16. Each detected face box is grown by `--blur-padding` (default 15 % of its
+width and height on each side, clipped to the person box) because detector
+boxes are often tight, and the region is replaced by a
 Gaussian blur (kernel 51x51, sigma 30). Blurring happens before boxes and text
 are drawn. This is best-effort: faces the detector misses are not blurred, and
 faces outside detected person boxes are never searched.
