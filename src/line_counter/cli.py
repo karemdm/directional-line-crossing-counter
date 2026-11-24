@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
+from pathlib import Path
 from typing import List, Optional, Sequence
 
 from line_counter import __version__
-from line_counter.config import DEFAULT_CLASS_NAMES, ProcessingConfig
+from line_counter.config import DEFAULT_CLASS_NAMES, PERSON_CLASS_ID, ProcessingConfig
 
 logger = logging.getLogger("line_counter")
 
@@ -26,6 +28,32 @@ def _non_negative_int(value: str) -> int:
     if n < 0:
         raise argparse.ArgumentTypeError("must be >= 0")
     return n
+
+
+def _unit_float(value: str) -> float:
+    x = float(value)
+    if not 0.0 <= x <= 1.0:  # also rejects nan
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
+    return x
+
+
+def _non_negative_float(value: str) -> float:
+    x = float(value)
+    if not (x >= 0.0 and math.isfinite(x)):
+        raise argparse.ArgumentTypeError("must be a finite number >= 0")
+    return x
+
+
+def describe_ignored_options(config: ProcessingConfig) -> List[str]:
+    """Return warnings for options that have no effect with the given settings."""
+    out: List[str] = []
+    if config.blur_faces and config.replay_tracks:
+        out.append("--blur-faces is ignored with --replay-tracks (no frame is detected, "
+                   "so no face is blurred)")
+    elif config.blur_faces and PERSON_CLASS_ID not in config.classes:
+        out.append("--blur-faces only blurs inside person boxes, but class 0 (person) is "
+                   "not in --classes: nothing will be blurred")
+    return out
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,10 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", default=_DEFAULTS.model,
                    help="Detector weights; Ultralytics official names auto-download "
                         "(default: %(default)s).")
-    p.add_argument("--conf", type=float, default=_DEFAULTS.conf,
+    p.add_argument("--conf", type=_unit_float, default=_DEFAULTS.conf,
                    help="Detection confidence threshold (default: %(default)s; very permissive, "
                         "0.1-0.25 is a common range).")
-    p.add_argument("--imgsz", type=int, default=_DEFAULTS.imgsz,
+    p.add_argument("--imgsz", type=_positive_int, default=_DEFAULTS.imgsz,
                    help="Inference image size in pixels (default: %(default)s).")
     p.add_argument("--classes", type=int, nargs="+", default=list(_DEFAULTS.classes),
                    help="COCO class IDs to track (default: %(default)s = "
@@ -65,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Do not count a crossing in the same direction within this many source "
                         "frames and --cooldown-px pixels of a previous one on the same line, "
                         "to absorb ID switches (default: %(default)s = off).")
-    p.add_argument("--cooldown-px", type=float, default=_DEFAULTS.cooldown_px,
+    p.add_argument("--cooldown-px", type=_non_negative_float, default=_DEFAULTS.cooldown_px,
                    help="Radius in pixels for --cooldown-frames (default: %(default)s).")
     p.add_argument("--layout", choices=("side", "overlay"), default=_DEFAULTS.layout,
                    help="side: counts in a panel next to the video (output is wider); overlay: "
@@ -117,6 +145,14 @@ def config_from_args(args: argparse.Namespace) -> ProcessingConfig:
     )
 
 
+def _same_file(a: object, b: object) -> bool:
+    """Tell whether two paths point to the same file (existing or not)."""
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except OSError:
+        return False
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Entry point for the ``line-counter`` console script.
 
@@ -136,7 +172,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from line_counter.gui import run_gui
 
         ignored = [opt for opt, val in (("--input", args.input), ("--output", args.output),
-                                        ("--lines", args.lines), ("--save-lines", args.save_lines))
+                                        ("--lines", args.lines), ("--save-lines", args.save_lines),
+                                        ("--save-counts", args.save_counts))
                    if val]
         if ignored:
             logger.warning("Ignored in GUI mode: %s", ", ".join(ignored))
@@ -146,6 +183,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     from line_counter.lines_io import load_lines, save_lines
     from line_counter.pipeline import default_output_path, process_video
+
+    if args.save_tracks and args.replay_tracks:  # check first: before any window opens
+        parser.error("--save-tracks and --replay-tracks cannot be used together")
+    if not Path(args.input).is_file():
+        logger.error("Input video not found: %s", args.input)
+        return 1
+    if args.output and _same_file(args.output, args.input):
+        logger.error("--output must not be the input video (it would be overwritten while read)")
+        return 1
+    for msg in describe_ignored_options(config):
+        logger.warning(msg)
 
     if args.lines:
         try:
@@ -171,11 +219,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         logger.error("No counting lines defined; nothing to do.")
         return 1
 
-    if args.save_tracks and args.replay_tracks:
-        parser.error("--save-tracks and --replay-tracks cannot be used together")
-
     output = args.output or default_output_path(args.input)
-    counter = process_video(args.input, output, lines, config)
+    if _same_file(output, args.input):
+        logger.error("The output video would overwrite the input: %s", output)
+        return 1
+    try:
+        counter = process_video(args.input, output, lines, config)
+    except (RuntimeError, OSError, ValueError) as exc:  # unreadable video, bad tracks file, ...
+        logger.error("Processing failed: %s", exc)
+        return 1
     if args.save_counts:
         from line_counter.counts_io import build_report, save_report
 
