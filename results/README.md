@@ -55,7 +55,7 @@ Earlier versions counted a crossing as soon as one step touched the line. The de
 | Line_12 | 38 | 34 |
 
 
-Accuracy (visual checks, no external ground truth): on Abbey Road about 79 to 87 percent of the 98 crossings counted here (default `--min-cross-distance 0.05`) were real, against about 73 to 82 percent of the 105 counted without the filter, and about 94 to 97.5 percent of the real crossings were counted in both cases (uncertain cases counted as wrong or as right give the ranges); the Shinjuku runs were only spot-checked. Stationary people at a line are the main source of false counts, dense groups are undercounted, and a rider can count twice (person and motorcycle) unless `--rider-overlap` is set. See [the evaluation](../docs/how-it-works.md#evaluation-of-the-two-filters).
+Accuracy (visual checks, no external ground truth): on Abbey Road about 80 to 87 percent of the 98 crossings counted here (default `--min-cross-distance 0.05`) were real, against about 74 to 82 percent of the 105 counted without the filter, and about 94 to 97.5 percent of the real crossings were counted in both cases (uncertain cases counted as wrong or as right give the ranges); the Shinjuku runs were only spot-checked. Stationary people at a line are the main source of false counts, dense groups are undercounted, and a rider can count twice (person and motorcycle) unless `--rider-overlap` is set. See [the evaluation](../docs/how-it-works.md#evaluation-of-the-two-filters).
 
 Counts depend on detection and tracking quality: people on the far side of the crossing are only a few pixels tall, so some are missed and some IDs switch. Treat the numbers as an illustration of the method, not as ground truth.
 

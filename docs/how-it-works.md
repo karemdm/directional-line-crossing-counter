@@ -292,13 +292,14 @@ suggested value when riders are counted twice.
   missed crossings (Line_2, two pairs walking side by side where only one person
   got a box) and up to 3 uncertain ones in dense groups (Lines 1 and 2); none on
   Lines 3 and 4. With the 79 verified TP this gives a recall of about 94 to 97.5
-  percent. The same reviewer judged two of the first reviewer's TP as FP (Line_2
-  at 103.2 s, id 547: a walker took the box of a standing man; Line_3 at
-  127.2 s, ids 943 and 950: one moped counted as person and as motorcycle), so
-  precision is a range: 77 to 79 TP, with the 7 uncertain counted as wrong (low
+  percent. The same reviewer also saw a Line_2 count at 103.2 s (id 547, a walker that took
+  the box of a standing man) as false, which the first reviewer had already
+  marked FP, and judged one of the two Line_3 counts at 127.2 s (ids 943 and 950:
+  one moped counted as person and as motorcycle) as false, which the first
+  reviewer had marked TP. So precision is a range: 78 to 79 TP, with the 7 uncertain counted as wrong (low
   end) or as right (high end). **Without the filter (105 counts, the old
-  behaviour): about 73 to 82 percent. With the default 0.05 (98 counts, the
-  shipped results): about 79 to 87 percent**, because it removed 6 FP and 1
+  behaviour): about 74 to 82 percent. With the default 0.05 (98 counts, the
+  shipped results): about 80 to 87 percent**, because it removed 6 FP and 1
   uncertain and no TP (6 uncertain remain). Recall is the same in both cases,
   about 94 to 97.5 percent, since the filter removed no verified TP.
 - *What the 0.05 default removed on Shinjuku 3 min.* All 12 removed crossings on

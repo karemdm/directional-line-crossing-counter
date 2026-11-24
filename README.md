@@ -298,8 +298,8 @@ Run the tests with `pytest` (`pip install -e .[dev]`; no model or weights are ne
 ## Accuracy
 
 Counts are not ground truth. In a visual check of the Abbey Road run (one video, two
-reviewers, judgement from frame crops, no external ground truth), about 73 to 82
-percent of the 105 crossings counted without the filter were real, and about 79 to 87
+reviewers, judgement from frame crops, no external ground truth), about 74 to 82
+percent of the 105 crossings counted without the filter were real, and about 80 to 87
 percent of the 98 counted with the default `--min-cross-distance 0.05` (the number that
 applies to the shipped results); about 94 to 97.5 percent of the real crossings were
 counted either way (the filter removed none of the verified ones). The ranges come from
