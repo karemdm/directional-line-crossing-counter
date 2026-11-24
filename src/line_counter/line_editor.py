@@ -51,6 +51,37 @@ def window_size(window_name: str) -> Tuple[int, int]:
     return max(rect[2], 1), max(rect[3], 1)
 
 
+def window_closed(window_name: str) -> bool:
+    """Tell whether the user closed an OpenCV window (X button) or it does not exist."""
+    try:
+        return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
+    except cv2.error:
+        return True
+
+
+def window_to_frame(x: int, y: int, win: Tuple[int, int], frame: Tuple[int, int]) -> Tuple[int, int]:
+    """Map a window pixel to frame pixel coordinates, clamped to the frame.
+
+    Args:
+        x: Window x.
+        y: Window y.
+        win: ``(width, height)`` of the window image area.
+        frame: ``(width, height)`` of the original frame.
+
+    Returns:
+        ``(x, y)`` in original pixels, inside ``[0, w-1] x [0, h-1]`` (a click
+        can be reported outside the window while the button is held).
+    """
+    px = int(x * frame[0] / win[0])
+    py = int(y * frame[1] / win[1])
+    return min(max(px, 0), frame[0] - 1), min(max(py, 0), frame[1] - 1)
+
+
+def frame_to_window(pt: Tuple[int, int], win: Tuple[int, int], frame: Tuple[int, int]) -> Tuple[int, int]:
+    """Map frame pixel coordinates to window pixels (inverse of :func:`window_to_frame`)."""
+    return int(pt[0] * win[0] / frame[0]), int(pt[1] * win[1] / frame[1])
+
+
 class _LineEditor:
     """Mouse-callback state for :func:`draw_lines`."""
 
@@ -63,10 +94,10 @@ class _LineEditor:
         """Handle a mouse event and redraw the scaled canvas."""
         orig_h, orig_w = self.frame.shape[:2]
         win_w, win_h = window_size(WINDOW_NAME)
-        scale_x, scale_y = orig_w / win_w, orig_h / win_h
+        frame_size = (orig_w, orig_h)
 
         if event == cv2.EVENT_LBUTTONDOWN:
-            point = (int(x * scale_x), int(y * scale_y))
+            point = window_to_frame(x, y, (win_w, win_h), frame_size)
             if self.pending and self.pending[0] == point:
                 logger.info("Second point equals the first one; click a different point")
             else:
@@ -80,7 +111,7 @@ class _LineEditor:
         canvas = cv2.resize(self.frame, (win_w, win_h))
 
         def to_win(pt: Tuple[int, int]) -> Tuple[int, int]:
-            return int(pt[0] / scale_x), int(pt[1] / scale_y)
+            return frame_to_window(pt, (win_w, win_h), frame_size)
 
         for line in self.lines:
             p1, p2 = to_win(line.p1), to_win(line.p2)
@@ -109,7 +140,11 @@ def draw_lines(frame: np.ndarray, lines: Optional[List[CountingLine]] = None) ->
     editor.on_mouse(cv2.EVENT_MOUSEMOVE, 0, 0, 0, None)  # initial render
     try:
         while (cv2.waitKey(20) & 0xFF) not in _FINISH_KEYS:
-            pass
+            if window_closed(WINDOW_NAME):  # closed with the X button: finish with what was drawn
+                break
     finally:
-        cv2.destroyWindow(WINDOW_NAME)
+        try:
+            cv2.destroyWindow(WINDOW_NAME)
+        except cv2.error:  # already gone (closed by the user)
+            pass
     return lines
