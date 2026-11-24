@@ -15,7 +15,8 @@
     "tracker": "botsort_reid_static.yaml",
     "frame_step": 3,
     "cooldown_frames": 0,
-    "cooldown_px": 40.0
+    "cooldown_px": 40.0,
+    "min_cross_distance": 0.05
   },
   "lines": [
     {
@@ -178,8 +179,8 @@
   "counts": {
     "Line_1": {
       "person": {
-        "IN": 18,
-        "OUT": 17
+        "IN": 17,
+        "OUT": 15
       },
       "car": {
         "IN": 0,
@@ -222,7 +223,7 @@
     },
     "Line_3": {
       "person": {
-        "IN": 28,
+        "IN": 27,
         "OUT": 58
       },
       "car": {
@@ -244,8 +245,8 @@
     },
     "Line_4": {
       "person": {
-        "IN": 37,
-        "OUT": 79
+        "IN": 33,
+        "OUT": 72
       },
       "car": {
         "IN": 0,
@@ -310,8 +311,8 @@
     },
     "Line_7": {
       "person": {
-        "IN": 13,
-        "OUT": 15
+        "IN": 6,
+        "OUT": 10
       },
       "car": {
         "IN": 0,
@@ -354,30 +355,30 @@
     },
     "Line_9": {
       "person": {
-        "IN": 13,
+        "IN": 11,
         "OUT": 5
       },
       "car": {
         "IN": 57,
-        "OUT": 41
+        "OUT": 40
       },
       "motorcycle": {
         "IN": 1,
         "OUT": 1
       },
       "bus": {
-        "IN": 1,
+        "IN": 0,
         "OUT": 1
       },
       "truck": {
-        "IN": 1,
+        "IN": 2,
         "OUT": 0
       }
     },
     "Line_10": {
       "person": {
-        "IN": 2,
-        "OUT": 5
+        "IN": 1,
+        "OUT": 3
       },
       "car": {
         "IN": 2,
@@ -398,12 +399,12 @@
     },
     "Line_11": {
       "person": {
-        "IN": 14,
-        "OUT": 11
+        "IN": 8,
+        "OUT": 7
       },
       "car": {
         "IN": 43,
-        "OUT": 60
+        "OUT": 58
       },
       "motorcycle": {
         "IN": 0,
@@ -415,13 +416,13 @@
       },
       "truck": {
         "IN": 1,
-        "OUT": 2
+        "OUT": 3
       }
     },
     "Line_12": {
       "person": {
-        "IN": 7,
-        "OUT": 3
+        "IN": 5,
+        "OUT": 2
       },
       "car": {
         "IN": 11,
@@ -433,7 +434,7 @@
       },
       "bus": {
         "IN": 0,
-        "OUT": 2
+        "OUT": 1
       },
       "truck": {
         "IN": 0,

@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 from line_counter import __version__
-from line_counter.config import DEFAULT_CLASS_NAMES, PERSON_CLASS_ID, ProcessingConfig
+from line_counter.config import (DEFAULT_CLASS_NAMES, PERSON_CLASS_ID, TWO_WHEELER_CLASS_IDS,
+                                 ProcessingConfig)
 
 logger = logging.getLogger("line_counter")
 
@@ -53,6 +54,10 @@ def describe_ignored_options(config: ProcessingConfig) -> List[str]:
     elif config.blur_faces and PERSON_CLASS_ID not in config.classes:
         out.append("--blur-faces only blurs inside person boxes, but class 0 (person) is "
                    "not in --classes: nothing will be blurred")
+    if (config.rider_overlap > 0 and not config.replay_tracks
+            and not set(TWO_WHEELER_CLASS_IDS) & set(config.classes)):
+        out.append("--rider-overlap needs class 1 (bicycle) or 3 (motorcycle) in --classes: "
+                   "no rider can be detected without them")
     return out
 
 
@@ -99,6 +104,17 @@ def build_parser() -> argparse.ArgumentParser:
                    metavar="SECONDS",
                    help="If a track reappears with the same ID after more than this many seconds, "
                         "do not test a crossing for that step (default: %(default)s = off).")
+    p.add_argument("--min-cross-distance", type=_non_negative_float,
+                   default=_DEFAULTS.min_cross_distance, metavar="FRACTION",
+                   help="Crossing hysteresis: count a crossing only when the bottom-centre point is "
+                        "at least this fraction of the box height away from the line on the new "
+                        "side (and was on the old side), so a person standing on the line does not "
+                        "count (default: %(default)s; 0 = off, the original rule).")
+    p.add_argument("--rider-overlap", type=_unit_float, default=_DEFAULTS.rider_overlap,
+                   metavar="FRACTION",
+                   help="Do not count a person whose box overlaps a bicycle or motorcycle box by at "
+                        "least this fraction of the person box (a rider); needs class 1 or 3 in "
+                        "--classes (default: %(default)s = off; try 0.5).")
     p.add_argument("--layout", choices=("side", "overlay"), default=_DEFAULTS.layout,
                    help="side: counts in a panel next to the video (output is wider); overlay: "
                         "counts drawn over the video (default: %(default)s).")
@@ -146,6 +162,8 @@ def config_from_args(args: argparse.Namespace) -> ProcessingConfig:
         cooldown_frames=args.cooldown_frames,
         cooldown_px=args.cooldown_px,
         max_track_gap=args.max_track_gap,
+        min_cross_distance=args.min_cross_distance,
+        rider_overlap=args.rider_overlap,
         blur_padding=args.blur_padding,
         frame_step=args.frame_step,
         layout=args.layout,

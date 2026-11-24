@@ -8,8 +8,8 @@ from typing import List, Optional, Union
 
 import cv2
 
-from line_counter.config import PERSON_CLASS_ID, ProcessingConfig
-from line_counter.counter import CountingLine, LineCounter
+from line_counter.config import PERSON_CLASS_ID, TWO_WHEELER_CLASS_IDS, ProcessingConfig
+from line_counter.counter import CountingLine, LineCounter, riding_ids
 from line_counter.drawing import compose_frame, draw_track, output_size
 from line_counter.geometry import segment_misses_frame
 from line_counter.line_editor import window_closed, window_size
@@ -115,7 +115,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
                                 cooldown_frames=config.cooldown_frames,
                                 cooldown_px=config.cooldown_px) for ln in lines]  # start from zero
     counter = LineCounter(fresh_lines, class_order,
-                          max_gap_frames=int(round(config.max_track_gap * fps)))
+                          max_gap_frames=int(round(config.max_track_gap * fps)),
+                          min_cross_distance=config.min_cross_distance)
     for ln in fresh_lines:
         if segment_misses_frame(ln.p1, ln.p2, w, h):
             logger.warning("%s lies completely outside the %dx%d frame and can never count; "
@@ -150,11 +151,14 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
                 tracks = _detect(model, frame, config, blurrer)
                 if tracks_fh is not None:
                     write_frame_tracks(tracks_fh, frame_idx, [track_record(*t) for t in tracks])
+            riders = riding_ids([(int(t[0]), int(t[1]), t[4]) for t in tracks], PERSON_CLASS_ID,
+                                TWO_WHEELER_CLASS_IDS, config.rider_overlap)
             for track_id, _cls_id, cls_name, _conf, box in tracks:
                 x1, y1, x2, y2 = (int(v) for v in box)
                 anchor = ((x1 + x2) // 2, y2)  # bottom-center ("feet" / wheels)
                 draw_track(frame, (x1, y1, x2, y2), int(track_id), cls_name, anchor)
-                for line_name, direction in counter.update(int(track_id), cls_name, anchor, frame_idx):
+                for line_name, direction in counter.update(int(track_id), cls_name, anchor, frame_idx,
+                                                           y2 - y1, int(track_id) in riders):
                     logger.info("Frame %d: #%d %s crossed %s (%s)",
                                 frame_idx, track_id, cls_name, line_name, direction)
 

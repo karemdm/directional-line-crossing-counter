@@ -52,6 +52,10 @@ def build_report(input_path: Union[str, Path], lines: List[CountingLine],
     settings["cooldown_px"] = config.cooldown_px
     if config.max_track_gap > 0:
         settings["max_track_gap"] = config.max_track_gap
+    if config.min_cross_distance > 0:
+        settings["min_cross_distance"] = config.min_cross_distance
+    if config.rider_overlap > 0:
+        settings["rider_overlap"] = config.rider_overlap
     return {"input": Path(input_path).name, "mode": mode, "settings": settings,
             "lines": lines_to_data(lines), "counts": counts}
 

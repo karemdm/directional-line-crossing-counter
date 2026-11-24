@@ -15,7 +15,8 @@
     "tracker": "botsort_reid_static.yaml",
     "frame_step": 3,
     "cooldown_frames": 0,
-    "cooldown_px": 40.0
+    "cooldown_px": 40.0,
+    "min_cross_distance": 0.05
   },
   "lines": [
     {
@@ -74,8 +75,8 @@
   "counts": {
     "Line_1": {
       "person": {
-        "IN": 9,
-        "OUT": 14
+        "IN": 8,
+        "OUT": 13
       },
       "car": {
         "IN": 0,
@@ -96,8 +97,8 @@
     },
     "Line_2": {
       "person": {
-        "IN": 15,
-        "OUT": 13
+        "IN": 14,
+        "OUT": 12
       },
       "car": {
         "IN": 0,
@@ -119,7 +120,7 @@
     "Line_3": {
       "person": {
         "IN": 6,
-        "OUT": 6
+        "OUT": 3
       },
       "car": {
         "IN": 12,
