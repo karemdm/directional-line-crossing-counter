@@ -95,6 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
                         "to absorb ID switches (default: %(default)s = off).")
     p.add_argument("--cooldown-px", type=_non_negative_float, default=_DEFAULTS.cooldown_px,
                    help="Radius in pixels for --cooldown-frames (default: %(default)s).")
+    p.add_argument("--max-track-gap", type=_non_negative_float, default=_DEFAULTS.max_track_gap,
+                   metavar="SECONDS",
+                   help="If a track reappears with the same ID after more than this many seconds, "
+                        "do not test a crossing for that step (default: %(default)s = off).")
     p.add_argument("--layout", choices=("side", "overlay"), default=_DEFAULTS.layout,
                    help="side: counts in a panel next to the video (output is wider); overlay: "
                         "counts drawn over the video (default: %(default)s).")
@@ -108,6 +112,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "lines and main settings) to this JSON file when processing ends.")
     p.add_argument("--blur-faces", action="store_true",
                    help="Blur faces detected inside person boxes (best-effort).")
+    p.add_argument("--blur-padding", type=_non_negative_float, default=_DEFAULTS.blur_padding,
+                   help="Extra margin around each face box as a fraction of its size "
+                        "(default: %(default)s; 0 = tight box).")
     p.add_argument("--face-model", default=_DEFAULTS.face_model,
                    help="Face detector weights used with --blur-faces (default: %(default)s).")
     p.add_argument("--no-display", action="store_true",
@@ -138,6 +145,8 @@ def config_from_args(args: argparse.Namespace) -> ProcessingConfig:
         display=not args.no_display,
         cooldown_frames=args.cooldown_frames,
         cooldown_px=args.cooldown_px,
+        max_track_gap=args.max_track_gap,
+        blur_padding=args.blur_padding,
         frame_step=args.frame_step,
         layout=args.layout,
         save_tracks=args.save_tracks,
