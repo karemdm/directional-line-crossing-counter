@@ -96,11 +96,17 @@ class LineCounter:
     Args:
         lines: Counting lines to update.
         class_names: Class names to pre-create zeroed buckets for.
+        max_gap_frames: If > 0, a step whose previous position is more than
+            this many source frames old is not tested for a crossing (a track
+            that vanished and came back with the same ID). 0 = off.
     """
 
-    def __init__(self, lines: Iterable[CountingLine], class_names: Iterable[str] = ()) -> None:
+    def __init__(self, lines: Iterable[CountingLine], class_names: Iterable[str] = (),
+                 max_gap_frames: int = 0) -> None:
         self.lines: List[CountingLine] = list(lines)
+        self.max_gap_frames = max_gap_frames
         self.previous_positions: Dict[int, Point] = {}
+        self.previous_frames: Dict[int, int] = {}
         names = list(class_names)
         for line in self.lines:
             for name in names:
@@ -121,12 +127,16 @@ class LineCounter:
         """
         events: List[Tuple[str, str]] = []
         prev = self.previous_positions.get(track_id)
+        if prev is not None and self.max_gap_frames > 0:
+            if frame - self.previous_frames.get(track_id, frame) > self.max_gap_frames:
+                prev = None  # stale anchor: the jump is not a real movement
         if prev is not None:
             for line in self.lines:
                 direction = line.update(track_id, cls_name, prev, curr, frame)
                 if direction is not None:
                     events.append((line.name, direction))
         self.previous_positions[track_id] = curr
+        self.previous_frames[track_id] = frame
         return events
 
     def summary(self) -> Dict[str, Dict[str, Dict[str, int]]]:
