@@ -173,3 +173,22 @@ def test_line_counter_passes_frame_to_cooldown() -> None:
     counter.update(2, "Person", (55, -5), frame=3)
     assert counter.update(2, "Person", (55, 5), frame=4) == []
     assert line.counts["Person"] == {IN: 1, OUT: 0}
+
+
+def test_max_gap_skips_the_step_after_a_long_absence() -> None:
+    line = _horizontal()
+    counter = LineCounter([line], ["Person"], max_gap_frames=30)
+    counter.update(1, "Person", (5, -5), frame=10)
+    assert counter.update(1, "Person", (5, 5), frame=100) == []  # 90 frames old: not tested
+    assert line.counts["Person"] == {IN: 0, OUT: 0}
+    assert counter.previous_positions[1] == (5, 5)  # the anchor is refreshed
+
+
+def test_max_gap_keeps_short_gaps_and_is_off_by_default() -> None:
+    line = _horizontal()
+    counter = LineCounter([line], ["Person"], max_gap_frames=30)
+    counter.update(1, "Person", (5, -5), frame=10)
+    assert counter.update(1, "Person", (5, 5), frame=40) == [("Line_1", IN)]  # exactly 30
+    other = LineCounter([_horizontal()], ["Person"])
+    other.update(1, "Person", (5, -5), frame=10)
+    assert other.update(1, "Person", (5, 5), frame=100000) == [("Line_1", IN)]
