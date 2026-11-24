@@ -75,6 +75,8 @@ class FaceBlurrer:
             batch = crops[start:start + FACE_BATCH_SIZE]
             results = self.model(batch, verbose=False, conf=self.conf)
             for crop, result in zip(batch, results):
+                if result.boxes is None:
+                    continue
                 blurred += self._blur_faces(crop, result.boxes.xyxy.cpu().numpy())
         return blurred
 
