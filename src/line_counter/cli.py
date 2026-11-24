@@ -109,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Crossing hysteresis: count a crossing only when the bottom-centre point is "
                         "at least this fraction of the box height away from the line on the new "
                         "side (and was on the old side), so a person standing on the line does not "
-                        "count (default: %(default)s = off; try 0.05).")
+                        "count (default: %(default)s; 0 = off, the original rule).")
     p.add_argument("--rider-overlap", type=_unit_float, default=_DEFAULTS.rider_overlap,
                    metavar="FRACTION",
                    help="Do not count a person whose box overlaps a bicycle or motorcycle box by at "

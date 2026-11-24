@@ -43,7 +43,7 @@ class ProcessingConfig:
         cooldown_px: Radius in pixels of the duplicate-crossing window.
         max_track_gap: Seconds; if > 0, a track that reappears after more than this
             time is not tested for a crossing on that step (0 = off).
-        min_cross_distance: Crossing hysteresis as a fraction of the box height (0 = off):
+        min_cross_distance: Crossing hysteresis as a fraction of the box height (default 0.05, 0 = off):
             a crossing is counted only after the anchor is at least this far from the
             line on the new side (and was this far on the old side).
         rider_overlap: If > 0, a person crossing is not counted when the person box
@@ -72,7 +72,7 @@ class ProcessingConfig:
     cooldown_frames: int = 0
     cooldown_px: float = 40.0
     max_track_gap: float = 0.0
-    min_cross_distance: float = 0.0
+    min_cross_distance: float = 0.05
     rider_overlap: float = 0.0
     frame_step: int = 1
     layout: str = "side"

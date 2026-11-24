@@ -114,7 +114,7 @@ def test_max_track_gap_and_blur_padding_options() -> None:
 
 def test_min_cross_distance_and_rider_overlap_options() -> None:
     cfg = _config()
-    assert cfg.min_cross_distance == 0.0 and cfg.rider_overlap == 0.0
+    assert cfg.min_cross_distance == 0.05 and cfg.rider_overlap == 0.0
     cfg = _config("--min-cross-distance", "0.1", "--rider-overlap", "0.5")
     assert (cfg.min_cross_distance, cfg.rider_overlap) == (0.1, 0.5)
     for argv in (["--min-cross-distance", "-0.1"], ["--rider-overlap", "1.5"], ["--rider-overlap", "-1"]):
