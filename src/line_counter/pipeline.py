@@ -79,7 +79,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     if config.blur_faces and replay is None:
         from line_counter.privacy import FaceBlurrer
 
-        blurrer = FaceBlurrer(config.face_model, config.face_conf, config.blur_kernel, config.blur_sigma)
+        blurrer = FaceBlurrer(config.face_model, config.face_conf, config.blur_kernel, config.blur_sigma,
+                                config.blur_padding)
 
     cap = cv2.VideoCapture(str(input_path))
     if not cap.isOpened():
@@ -113,7 +114,8 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
     fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2,
                                 cooldown_frames=config.cooldown_frames,
                                 cooldown_px=config.cooldown_px) for ln in lines]  # start from zero
-    counter = LineCounter(fresh_lines, class_order)
+    counter = LineCounter(fresh_lines, class_order,
+                          max_gap_frames=int(round(config.max_track_gap * fps)))
     for ln in fresh_lines:
         if segment_misses_frame(ln.p1, ln.p2, w, h):
             logger.warning("%s lies completely outside the %dx%d frame and can never count; "

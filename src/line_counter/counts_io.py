@@ -50,6 +50,8 @@ def build_report(input_path: Union[str, Path], lines: List[CountingLine],
                     "frame_step": config.frame_step}
     settings["cooldown_frames"] = config.cooldown_frames
     settings["cooldown_px"] = config.cooldown_px
+    if config.max_track_gap > 0:
+        settings["max_track_gap"] = config.max_track_gap
     return {"input": Path(input_path).name, "mode": mode, "settings": settings,
             "lines": lines_to_data(lines), "counts": counts}
 

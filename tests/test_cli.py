@@ -100,3 +100,13 @@ def test_warns_when_options_are_silently_useless(tmp_path, caplog) -> None:
     assert any("person" in m for m in describe_ignored_options(cfg))
     assert describe_ignored_options(_config("--blur-faces")) == []
     assert describe_ignored_options(_config()) == []
+
+
+def test_max_track_gap_and_blur_padding_options() -> None:
+    cfg = _config()
+    assert cfg.max_track_gap == 0.0 and cfg.blur_padding == 0.15
+    cfg = _config("--max-track-gap", "2", "--blur-padding", "0.3")
+    assert (cfg.max_track_gap, cfg.blur_padding) == (2.0, 0.3)
+    for argv in (["--max-track-gap", "-1"], ["--blur-padding", "-0.1"]):
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(argv)
