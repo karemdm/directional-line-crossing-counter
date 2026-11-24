@@ -144,8 +144,26 @@ however old it is, so that jump can look like a crossing. With
 `--max-track-gap S` (seconds, > 0), if the previous position of a track is
 more than `S` seconds (converted to source frames with the video fps) older than
 the current frame, that step is not tested; the position is just refreshed.
-Off by default, so counts do not change unless it is set. It can also hide a
-real crossing by an object that was briefly lost right at the line.
+Off by default, so counts do not change unless it is set.
+
+It is a trade-off: it removes some false crossings caused by ID reuse, but it
+also removes real crossings of a person who was lost for a while and found again
+with the same ID. If you use it, set it at or above the tracker's buffer in
+seconds (`track_buffer` x frame step / fps; for `botsort_reid_static.yaml` with
+`track_buffer` 90 at `--frame-step 3` that is about 9 s), because the tracker
+keeps lost IDs that long on purpose. A value like 2 s mostly cuts real
+crossings.
+
+Check on Shinjuku 90 s with `--max-track-gap 2` (one video, no ground truth):
+23 of the removed crossings (all 13 on Line_8, 10 of 17 on Line_4) were judged
+from still frames. 12 looked like real crossings of the same person briefly
+lost, 4 were ID reuse, and 7 were unclear (4 of them small jitter of people
+standing at the curb). The removed crossings had gaps of 2.4 to 9.1 s (median
+5.5 s), and real and wrong cases overlapped fully in gap length and implied
+speed (0.4 to 0.8 body heights per second), so no threshold separates them.
+
+Known limitation: a person standing near a line can be counted after a long
+loss because of a few pixels of box movement. No rule handles this.
 
 ### Edge cases
 

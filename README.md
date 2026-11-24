@@ -201,7 +201,7 @@ time and compare the counts on a short clip you have verified by eye.
 | `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
 | `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
 | `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
-| `--max-track-gap` | `0` (off) | Seconds. If a track reappears with the same ID after a longer absence, no crossing is tested for that step (its old position is too stale). |
+| `--max-track-gap` | `0` (off) | Seconds. If a track reappears with the same ID after a longer absence, no crossing is tested for that step (its old position is too stale). Trade-off: fewer ID-reuse false crossings, but also missed real crossings of a person briefly lost. If used, set it at or above the tracker buffer in seconds (`track_buffer` x frame step / fps), not a few seconds; see [how it works](docs/how-it-works.md). |
 | `--layout` | `side` | `side` adds a dark panel with the counts to the right of the video (the output is wider); `overlay` draws the counts over the video. |
 | `--save-tracks` | none | Write the tracks of every processed frame (id, class, confidence, box) to a JSON Lines file. |
 | `--replay-tracks` | none | Skip detection and tracking and re-render from a file written by `--save-tracks` (frame step is taken from the file; face blur is not applied). |
