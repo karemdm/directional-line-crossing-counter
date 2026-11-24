@@ -27,23 +27,35 @@ command-line interface are both included.
 
 ```mermaid
 flowchart TD
-    A["Video frame"] --> B["YOLO detection<br/>(conf, imgsz, classes)"]
-    B --> C["BoT-SORT tracking<br/>(persistent IDs)"]
-    C --> D{"Face blur<br/>enabled?"}
+    A["Source video frame n<br/>(1-based)"] --> R{"--replay-tracks?"}
+    R -- no --> K{"frame-step:<br/>(n - 1) mod N = 0?"}
+    K -- no --> Z["Frame skipped<br/>(decoded, not processed or written)"]
+    K -- yes --> B["YOLO detection + tracker<br/>(conf, imgsz, classes, tracker)"]
+    B --> D{"--blur-faces?"}
     D -- yes --> E["Blur faces inside<br/>person boxes"]
-    D -- no --> F
-    E --> F["Anchor = bottom-center<br/>segment prev → curr"]
-    F --> G{"Strict segment<br/>intersection with a line?"}
+    D -- no --> T
+    E --> T["Tracks of the frame:<br/>id, class, confidence, box"]
+    T --> W["--save-tracks:<br/>write the frame to JSONL"]
+    R -- yes --> L["Load the tracks of frame n<br/>from the JSONL<br/>(frames not in the file are skipped)"]
+    L --> U["Anchor = bottom-center of the box<br/>segment prev anchor → current anchor"]
+    T --> U
+    U --> G{"Segment strictly crosses<br/>a counting line segment?"}
     G -- no --> J
-    G -- yes --> H["Side test (cross product)<br/>→ IN / OUT"]
-    H --> I["Count once per ID per line"]
-    I --> J["Draw boxes, lines, badges, side panel"]
-    J --> K["Write frame to &lt;name&gt;_proc.mp4<br/>+ live preview"]
+    G -- yes --> M{"ID already counted<br/>on this line?"}
+    M -- yes --> J
+    M -- no --> H["Side of the current anchor<br/>(cross product) → IN or OUT"]
+    H --> Q{"Cooldown on and a recent<br/>same-direction crossing nearby?"}
+    Q -- yes --> P["Mark the ID as counted,<br/>do not add to the counts"]
+    Q -- no --> I["Add 1 to the line's<br/>IN or OUT for the class"]
+    P --> J
+    I --> J["Draw boxes, lines, badges<br/>and the side panel"]
+    J --> O["Write the frame to the output .mp4<br/>(fps / N) + live preview"]
+    O --> C["End: log summary,<br/>--save-counts JSON"]
 ```
 
-- **Crossing:** the trajectory segment from the previous to the current anchor must intersect the drawn segment (counter-clockwise orientation test).
-- **Direction:** IN when the anchor moves from the negative to the positive side of the directed line `P1 -> P2` (2D cross product), OUT when it moves from the positive to the negative side. The click order of a line therefore defines which way is IN.
-- **Deduplication:** each line remembers the track IDs it has already counted.
+- **Anchor and crossing:** the anchor is the bottom-center of the box, `((x1 + x2) // 2, y2)`. The trajectory segment from the previous to the current anchor of the same ID must intersect the drawn segment (counter-clockwise orientation test). With `--frame-step N` the previous anchor is the one of the previous *processed* frame.
+- **Direction:** IN when the anchor moves from the negative to the positive side of the directed line `P1 -> P2` (2D cross product), OUT when it moves from the positive to the negative side. On screen (y pointing down) the positive side is the right-hand side when you walk from `P1` to `P2`; for a horizontal line clicked left to right, moving down is IN. The click order of a line therefore defines which way is IN.
+- **Deduplication:** each line remembers the track IDs it has already counted. The optional cooldown (`--cooldown-frames`, `--cooldown-px`) also drops a crossing in the same direction close in time and space to a previous one on the same line; the ID is still marked as counted.
 
 See [docs/how-it-works.md](docs/how-it-works.md) for the formulas, edge cases and tuning tips.
 
@@ -88,7 +100,7 @@ Example outputs produced by this project (re-encoded to H.264, no audio):
 
 | File | Content |
 |---|---|
-| [`results/shinjuku_line_count.mp4`](results/shinjuku_line_count.mp4) | Busy intersection with several counting lines; per-line IN/OUT counts for people and vehicles in the side panel. |
+| [`results/shinjuku_line_count.mp4`](results/shinjuku_line_count.mp4) | Busy intersection with several counting lines; per-line IN/OUT counts for people and vehicles in the on-frame HUD (the older `--layout overlay` style, 1280x720). |
 | [`results/shinjuku_90s_counted.mp4`](results/shinjuku_90s_counted.mp4) | Shinjuku crossing live webcam, 90 s, 12 lines. |
 | [`results/shinjuku_3min_counted.mp4`](results/shinjuku_3min_counted.mp4) | Same webcam, 3 min, 12 lines. |
 | [`results/abbey_road_3min_counted.mp4`](results/abbey_road_3min_counted.mp4) | Abbey Road crossing live webcam, 3 min, 4 lines. |
@@ -164,7 +176,7 @@ line-counter --input video.mp4 --lines lines.json --no-display \
 - **Larger model:** `--model yolo11x.pt` or `--model yolo26x.pt` (downloaded automatically by Ultralytics). Larger models find small people more reliably than the medium one.
 - **Larger input size:** `--imgsz 1920` to `2560` for 1080p wide shots, so small people are not shrunk away before detection.
 - **Lower confidence:** `--conf` around `0.1` to `0.2` keeps weak detections of small people without flooding the tracker with false ones.
-- **Longer-memory tracker:** `--tracker configs/botsort_reid.yaml` keeps lost tracks for about 3 s (at 30 fps), uses lower thresholds for weak detections and re-identifies people by appearance. `configs/bytetrack_long.yaml` is a lighter alternative without ReID.
+- **Longer-memory tracker:** `--tracker configs/botsort_reid.yaml` keeps lost tracks for 90 processed frames (about 3 s at 30 fps with `--frame-step 1`, about 9 s with `--frame-step 3`, because the tracker only sees the processed frames), uses lower thresholds for weak detections and re-identifies people by appearance. `configs/bytetrack_long.yaml` is a lighter alternative without ReID.
 - **Fixed camera:** `configs/botsort_reid_static.yaml` is the same tracker without camera-motion compensation. On a camera that does not move this skips the costly global-motion step at no loss, so it is the better choice for street webcams; the results in `results/` use it.
 - **Fewer frames:** `--frame-step 2` (or 3) processes every Nth frame and writes the output at fps/N, which keeps long videos feasible at a large `--imgsz`. Keep it low for fast movers: people must not travel too far between processed frames.
 - **Duplicate crossings (optional):** if ID switches double-count the same person at a line, try `--cooldown-frames 15 --cooldown-px 40`. It is off by default because it can also hide two real people crossing side by side in a crowd.
@@ -209,7 +221,7 @@ blur kernel `51x51`, blur sigma `30`.
 
 ## Output
 
-- `<name>_proc.mp4` (MP4V codec, same frame rate as the input; with the default `--layout side` the frame is the original plus a panel on the right) with:
+- `<name>_proc.mp4` (MP4V codec, frame rate = input fps divided by `--frame-step`, so it plays at the original speed; with the default `--layout side` the frame is the original plus a panel on the right) with:
   - corner-style boxes labelled `#<track id> <class>` and the bottom-center anchor point,
   - the counting lines, each in its own color, with a small semi-transparent badge near the line showing its name and totals, e.g. `Line_4  12 in / 8 out`,
   - a side panel titled "Line counts" with one compact block per line (color swatch, name, then per-class counts such as `Person 12 in / 8 out   Car 3 in / 1 out`; only classes with a crossing are listed, otherwise `no crossings yet`). The font shrinks as needed so many lines fit, and if they still do not fit, a dim `+N more lines` row is shown; the panel ends with the total in/out over all classes. Class names are shown exactly as the model names them. With `--layout overlay` the counts are drawn over the video instead.
@@ -251,18 +263,24 @@ directional-line-crossing-counter/
   tests/
     test_geometry.py
     test_counter.py
+    test_lines_validation.py
     test_cli.py
     test_drawing.py
     test_tracks_io.py
     test_counts_io.py
+    test_pipeline.py     # synthetic video + fake detector, replay == live
+    test_line_editor.py # window -> frame coordinate mapping
+    test_privacy.py     # face blur clipping with a fake face model
 ```
 
-Run the tests with `pytest` (they only need the standard library).
+Run the tests with `pytest` (`pip install -e .[dev]`; no model or weights are needed: the detector is faked and the videos are synthetic).
 
 ## Limitations
 
 - Counts depend entirely on detection and tracking quality. ID switches after occlusions can cause double counts; missed detections near a line can cause missed counts.
 - Each track ID is counted once per line: an object that crosses, returns and crosses again is counted only the first time.
+- A track that disappears and comes back with the same ID (tracker buffer) is compared with its last known position, however long ago that was, so a person hidden behind a bus can be counted when they reappear on the other side of a line.
+- A line must be drawn at the resolution of the video; lines that lie completely outside the frame are reported with a warning and can never count.
 - The class of a count is the class detected in the crossing frame; class flicker (e.g. car/truck) can move counts between classes.
 - An anchor landing exactly on a line is treated as being on the negative side by the strict CCW test, so the crossing is counted on the step that enters or leaves the positive side; exactly at a line endpoint the result is asymmetric (see [docs](docs/how-it-works.md#edge-cases)).
 - No perspective correction: lines are drawn in image space.
