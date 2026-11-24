@@ -47,11 +47,13 @@ def lines_from_data(data: list) -> List[CountingLine]:
 
     Raises:
         ValueError: If the data is not a list of objects, or an entry does not
-            have exactly two numeric ``[x, y]`` points.
+            have exactly two numeric ``[x, y]`` points, or names are empty or
+            repeated. Coordinates are rounded to whole pixels.
     """
     if not isinstance(data, list):
         raise ValueError("Lines file must contain a JSON list of line objects")
     lines: List[CountingLine] = []
+    seen: set = set()
     for i, item in enumerate(data, start=1):
         if not isinstance(item, dict):
             raise ValueError(f"Line entry {i} must be an object with a 'points' key")
@@ -60,10 +62,16 @@ def lines_from_data(data: list) -> List[CountingLine]:
                 or any(not isinstance(p, (list, tuple)) or len(p) != 2 for p in points)):
             raise ValueError(f"Line entry {i} must have exactly two [x, y] points")
         try:
-            (x1, y1), (x2, y2) = ((int(x), int(y)) for x, y in points)
-        except (TypeError, ValueError) as exc:
+            (x1, y1), (x2, y2) = ((round(x), round(y)) for x, y in points)
+        except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError(f"Line entry {i} has non-numeric coordinates") from exc
         name = str(item.get("name", f"Line_{i}"))
+        if not name.strip():
+            raise ValueError(f"Line entry {i} has an empty name")
+        if name in seen:
+            raise ValueError(f"Line name {name!r} is used twice; names must be unique "
+                             "(counts are reported per name)")
+        seen.add(name)
         if (x1, y1) == (x2, y2):
             logger.warning("%s has two identical points; it can never be crossed", name)
         lines.append(CountingLine(name, (x1, y1), (x2, y2)))
