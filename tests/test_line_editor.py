@@ -122,3 +122,45 @@ def test_is_quit_key_accepts_both_cases():
     assert is_quit_key(ord("q")) and is_quit_key(ord("Q"))
     assert not is_quit_key(-1) and not is_quit_key(ord("a"))
     assert is_quit_key(ord("q") | 0x100000)  # high bits set by some backends are ignored
+
+
+def test_undo_removes_the_pending_point_then_the_last_line(editor):
+    click(editor, 100, 100)
+    click(editor, 400, 300)
+    click(editor, 50, 50)
+    assert editor.undo() is True and editor.pending == [] and len(editor.lines) == 1
+    assert editor.undo() is True and editor.lines == []
+    assert editor.undo() is False
+
+
+def test_undo_then_new_line_reuses_the_name(editor):
+    click(editor, 100, 100)
+    click(editor, 400, 300)
+    editor.undo()
+    click(editor, 10, 10)
+    click(editor, 20, 20)
+    assert [ln.name for ln in editor.lines] == ["Line_1"]
+
+
+def test_draw_lines_handles_undo_keys_and_redraws_on_resize(monkeypatch):
+    shown = []
+    state = {"size": (100, 100)}
+    keys = iter([ord("u"), -1, 8, 13])
+
+    def wait_key(ms):
+        k = next(keys)
+        if k == -1:
+            state["size"] = (200, 200)  # the user resizes the window
+        return k
+
+    monkeypatch.setattr(cv2, "namedWindow", lambda *a: None)
+    monkeypatch.setattr(cv2, "setMouseCallback", lambda *a: None)
+    monkeypatch.setattr(cv2, "imshow", lambda name, img: shown.append(img.shape[:2]))
+    monkeypatch.setattr(cv2, "destroyWindow", lambda *a: None)
+    monkeypatch.setattr(cv2, "waitKey", wait_key)
+    monkeypatch.setattr(cv2, "getWindowProperty", lambda n, p: 1.0)
+    monkeypatch.setattr(line_editor, "window_size", lambda name: state["size"])
+    existing = [CountingLine("Line_1", (0, 0), (5, 5)), CountingLine("Line_2", (1, 1), (6, 6))]
+    line_editor.draw_lines(np.zeros((50, 50, 3), np.uint8), existing)
+    assert existing == []  # two undo keys removed both lines
+    assert (200, 200) in shown  # redrawn at the new window size

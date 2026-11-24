@@ -1,7 +1,7 @@
 """Interactive OpenCV editor for drawing counting lines on a frame.
 
 Click two points to create a line; repeat for more lines; press ENTER or ESC
-to finish. The window can be resized or maximised: clicks are mapped back to
+to finish; press U or BACKSPACE to undo the last point or line. The window can be resized or maximised: clicks are mapped back to
 the original video resolution.
 """
 
@@ -21,6 +21,7 @@ WINDOW_NAME = "Draw Lines - Press [ENTER] to Finish"
 LINE_COLOR = (0, 0, 255)
 PENDING_COLOR = (0, 255, 0)
 _FINISH_KEYS = (13, 27)  # ENTER, ESC
+_UNDO_KEYS = (ord("u"), ord("U"), 8)  # U, BACKSPACE
 
 
 def read_first_frame(video_path: str) -> Optional[np.ndarray]:
@@ -89,6 +90,22 @@ class _LineEditor:
         self.frame = frame
         self.lines = lines
         self.pending: List[Tuple[int, int]] = []
+        self.last_size: Tuple[int, int] = (0, 0)
+
+    def undo(self) -> bool:
+        """Remove the pending first point, or else the last line.
+
+        Returns:
+            True if something was removed.
+        """
+        if self.pending:
+            self.pending.pop()
+            return True
+        if self.lines:
+            removed = self.lines.pop()
+            logger.info("Removed %s", removed.name)
+            return True
+        return False
 
     def on_mouse(self, event: int, x: int, y: int, _flags: int, _param: object) -> None:
         """Handle a mouse event and redraw the scaled canvas."""
@@ -107,7 +124,14 @@ class _LineEditor:
                 self.lines.append(CountingLine(name, self.pending[0], self.pending[1]))
                 logger.info("Added %s: %s -> %s", name, self.pending[0], self.pending[1])
                 self.pending = []
+        self.render()
 
+    def render(self) -> None:
+        """Redraw the frame, lines and pending point at the current window size."""
+        orig_h, orig_w = self.frame.shape[:2]
+        win_w, win_h = window_size(WINDOW_NAME)
+        frame_size = (orig_w, orig_h)
+        self.last_size = (win_w, win_h)
         canvas = cv2.resize(self.frame, (win_w, win_h))
 
         def to_win(pt: Tuple[int, int]) -> Tuple[int, int]:
@@ -137,11 +161,19 @@ def draw_lines(frame: np.ndarray, lines: Optional[List[CountingLine]] = None) ->
     editor = _LineEditor(frame, lines)
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
     cv2.setMouseCallback(WINDOW_NAME, editor.on_mouse)
-    editor.on_mouse(cv2.EVENT_MOUSEMOVE, 0, 0, 0, None)  # initial render
+    editor.render()
     try:
-        while (cv2.waitKey(20) & 0xFF) not in _FINISH_KEYS:
+        while True:
+            key = cv2.waitKey(20) & 0xFF
+            if key in _FINISH_KEYS:
+                break
             if window_closed(WINDOW_NAME):  # closed with the X button: finish with what was drawn
                 break
+            if key in _UNDO_KEYS:
+                editor.undo()
+                editor.render()
+            elif window_size(WINDOW_NAME) != editor.last_size:  # window resized: redraw
+                editor.render()
     finally:
         try:
             cv2.destroyWindow(WINDOW_NAME)
