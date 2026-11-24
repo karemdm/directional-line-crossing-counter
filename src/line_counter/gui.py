@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from typing import List, Optional
@@ -45,6 +47,10 @@ class LauncherApp:
                                      command=self.process_video, width=32, state=tk.DISABLED,
                                      bg="#4CAF50", fg="white")
         self.btn_process.pack(pady=15)
+        self.lbl_status = tk.Label(root, text="", fg="gray")
+        self.lbl_status.pack()
+        self.worker: Optional[threading.Thread] = None
+        self._result: Optional[tuple] = None
 
     def select_video(self) -> None:
         """Ask for an input video and reset any previously drawn lines."""
@@ -72,20 +78,49 @@ class LauncherApp:
             messagebox.showwarning("Warning", "No lines were drawn.")
 
     def process_video(self) -> None:
-        """Ask for an output folder, then process and save the video."""
-        from line_counter.pipeline import default_output_path, process_video
+        """Ask for an output folder, then process and save the video in a worker thread."""
+        from line_counter.pipeline import default_output_path
 
+        if self.worker is not None and self.worker.is_alive():
+            return
         output_dir = filedialog.askdirectory(title="Select Output Directory to Save Processed Video")
         if not output_dir:
             return
         output_path = default_output_path(self.video_path, output_dir)
+        # The OpenCV preview window needs the main thread, so it is off in the launcher.
+        config = dataclasses.replace(self.config, display=False)
+        self._result = None
+        self.btn_process.config(state=tk.DISABLED)
+        self.btn_draw.config(state=tk.DISABLED)
+        self.lbl_status.config(text="Processing... (the window stays usable)")
+        self.worker = threading.Thread(target=self._work, args=(output_path, config), daemon=True)
+        self.worker.start()
+        self.root.after(200, self._poll)
+
+    def _work(self, output_path: str, config: ProcessingConfig) -> None:
+        """Worker thread: run the pipeline and store the outcome (no Tk calls here)."""
+        from line_counter.pipeline import process_video
+
         try:
-            process_video(self.video_path, output_path, self.lines, self.config)
+            process_video(self.video_path, output_path, self.lines, config)
+            self._result = (None, output_path)
         except Exception as exc:  # surface any failure to the GUI user
             logger.exception("Processing failed")
-            messagebox.showerror("Error", f"Processing failed:\n{exc}")
+            self._result = (exc, output_path)
+
+    def _poll(self) -> None:
+        """Main thread: check the worker every 200 ms and report when it is done."""
+        if self._result is None:
+            self.root.after(200, self._poll)
             return
-        messagebox.showinfo("Finished", f"Video processing completed!\nSaved to: {output_path}")
+        error, output_path = self._result
+        self.btn_process.config(state=tk.NORMAL)
+        self.btn_draw.config(state=tk.NORMAL)
+        self.lbl_status.config(text="")
+        if error is not None:
+            messagebox.showerror("Error", f"Processing failed:\n{error}")
+        else:
+            messagebox.showinfo("Finished", f"Video processing completed!\nSaved to: {output_path}")
 
 
 def run_gui(config: Optional[ProcessingConfig] = None) -> None:
