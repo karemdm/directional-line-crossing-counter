@@ -11,7 +11,8 @@ import cv2
 from line_counter.config import PERSON_CLASS_ID, ProcessingConfig
 from line_counter.counter import CountingLine, LineCounter
 from line_counter.drawing import compose_frame, draw_track, output_size
-from line_counter.line_editor import window_size
+from line_counter.geometry import segment_misses_frame
+from line_counter.line_editor import window_closed, window_size
 from line_counter.tracks_io import (infer_frame_step, load_tracks, track_record,
                                     write_frame_tracks)
 
@@ -19,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 PREVIEW_WINDOW = "Processing - Press 'Q' to Stop"
 FALLBACK_FPS = 30.0
+
+
+def is_quit_key(key: int) -> bool:
+    """Tell whether a ``cv2.waitKey`` result is Q or q (high bits are ignored)."""
+    return (key & 0xFF) in (ord("q"), ord("Q"))
 
 
 def default_output_path(input_path: Union[str, Path], output_dir: Optional[Union[str, Path]] = None) -> Path:
@@ -53,7 +59,10 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
         The counter holding the final counts.
 
     Raises:
-        RuntimeError: If the video cannot be opened or the writer fails.
+        RuntimeError: If the video cannot be opened, no frame can be read or
+            the writer fails.
+        ValueError: If a ``--replay-tracks`` file is invalid.
+        OSError: If the tracks file cannot be created.
     """
     replay = None
     model = None
@@ -100,27 +109,35 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
         class_order = [saved[c] for c in sorted(saved)]
     else:
         class_order = [config.class_name(c, model.names) for c in config.classes]
+    class_order = list(dict.fromkeys(class_order))  # two class IDs can share a display name
     fresh_lines = [CountingLine(ln.name, ln.p1, ln.p2,
                                 cooldown_frames=config.cooldown_frames,
                                 cooldown_px=config.cooldown_px) for ln in lines]  # start from zero
     counter = LineCounter(fresh_lines, class_order)
+    for ln in fresh_lines:
+        if segment_misses_frame(ln.p1, ln.p2, w, h):
+            logger.warning("%s lies completely outside the %dx%d frame and can never count; "
+                           "were the lines drawn on a video of another resolution?", ln.name, w, h)
 
     if config.display:
         cv2.namedWindow(PREVIEW_WINDOW, cv2.WINDOW_NORMAL)
 
     tracks_fh = None
-    if config.save_tracks and replay is None:
-        Path(config.save_tracks).parent.mkdir(parents=True, exist_ok=True)
-        tracks_fh = open(config.save_tracks, "w", encoding="utf-8")
-
     frame_idx = 0
+    processed = 0
+    last_replay_frame = max(replay) if replay else 0
     try:
+        if config.save_tracks and replay is None:
+            Path(config.save_tracks).parent.mkdir(parents=True, exist_ok=True)
+            tracks_fh = open(config.save_tracks, "w", encoding="utf-8")
         while True:
             ok, frame = cap.read()
             if not ok:
                 break
             frame_idx += 1
             if replay is not None:
+                if frame_idx > last_replay_frame:
+                    break  # nothing left to render; do not decode the rest of the video
                 if frame_idx not in replay:  # replay uses the frame indices of the file
                     continue
                 tracks = [(t["id"], t["cls"], t["name"], t.get("conf", 0.0), t["box"])
@@ -139,6 +156,7 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
                     logger.info("Frame %d: #%d %s crossed %s (%s)",
                                 frame_idx, track_id, cls_name, line_name, direction)
 
+            processed += 1
             frame = compose_frame(frame, counter.lines, class_order, config.layout)
             if frame.shape[1] != out_w or frame.shape[0] != out_h:  # writer silently drops mismatched frames
                 frame = cv2.resize(frame, (out_w, out_h))
@@ -149,7 +167,7 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
 
             if config.display:
                 cv2.imshow(PREVIEW_WINDOW, cv2.resize(frame, window_size(PREVIEW_WINDOW)))
-                if cv2.waitKey(1) & 0xFF == ord("q"):
+                if is_quit_key(cv2.waitKey(1)) or window_closed(PREVIEW_WINDOW):
                     logger.info("Stopped by user at frame %d", frame_idx)
                     break
     except KeyboardInterrupt:
@@ -162,7 +180,11 @@ def process_video(input_path: Union[str, Path], output_path: Union[str, Path],
         if config.display:
             cv2.destroyAllWindows()
 
-    logger.info("Saved %d frames to %s", frame_idx, output_path)
+    if frame_idx == 0:
+        raise RuntimeError(f"No frames could be read from: {input_path}")
+    if processed == 0:
+        logger.warning("No frame was processed; do the tracks file and the video belong together?")
+    logger.info("Saved %d frames to %s", processed, output_path)
     for line_name, per_class in counter.summary().items():
         logger.info("%s: %s", line_name, per_class)
     return counter
