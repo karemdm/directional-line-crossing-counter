@@ -55,6 +55,8 @@ Earlier versions counted a crossing as soon as one step touched the line. The de
 | Line_12 | 38 | 34 |
 
 
+Accuracy (visual checks, no external ground truth): on Abbey Road about 73 to 82 percent of the counted crossings were real and about 94 to 97.5 percent of the real ones were counted; the Shinjuku runs were only spot-checked. Stationary people at a line are the main source of false counts, dense groups are undercounted, and a rider can count twice (person and motorcycle) unless `--rider-overlap` is set. See [the evaluation](../docs/how-it-works.md#evaluation-of-the-two-filters).
+
 Counts depend on detection and tracking quality: people on the far side of the crossing are only a few pixels tall, so some are missed and some IDs switch. Treat the numbers as an illustration of the method, not as ground truth.
 
 ## Shinjuku, 90 s

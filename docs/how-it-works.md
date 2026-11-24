@@ -285,6 +285,30 @@ person) are not affected. On both Shinjuku runs 0.3 and 0.5 changed nothing. One
 event is too little to choose a default from, so it stays `0` (off); 0.5 is the
 suggested value when riders are counted twice.
 
+**Two more checks (visual judgement, no external ground truth).**
+
+- *Recall on Abbey Road.* A second, independent reviewer went through every 0.5 s
+  sheet and crops of the lines for crossings that were never counted: 2 likely
+  missed crossings (Line_2, two pairs walking side by side where only one person
+  got a box) and up to 3 uncertain ones in dense groups (Lines 1 and 2); none on
+  Lines 3 and 4. With the 79 verified TP this gives a recall of about 94 to 97.5
+  percent. The same reviewer judged two of the first reviewer's TP as FP (Line_2
+  at 103.2 s, id 547: a walker took the box of a standing man; Line_3 at
+  127.2 s, ids 943 and 950: one moped counted as person and as motorcycle), so
+  the precision of the unfiltered 105 counts is a range: 77 to 79 TP, that is
+  about 73 percent (uncertain counted as wrong) to 82 percent (uncertain
+  counted as right).
+- *What the 0.05 default removed on Shinjuku 3 min.* All 12 removed crossings on
+  Line_7 and a random 10 of the 11 removed on each of Line_4 and Line_11 were
+  judged by eye (32 events): 21 were false counts (people standing on the line
+  with 1 to 4 px of jitter, tracks that start on the line, walkers sliding
+  along it, stale anchors after an ID jump), 4 were real crossings that were
+  lost (tracks born inside the band, or ending just short of it) and 7 could not
+  be decided. Line_7 is short and far away (people about 33 px tall, so the band
+  is only about 1.7 px). Lower values (0.03, 0.02) bring back 7 to 12 false counts
+  to recover 3 real ones, and a fixed pixel floor instead of a fraction of the
+  box height was worse, so 0.05 stays.
+
 **Uncertain cases** on Abbey Road (seven): the person #119 walking from the road
 onto the pavement on Line_1; on Line_2 the person #465 who stands at the kerb and
 steps down and back, and #817, #1100, #1087 and #1144 (people at the kerb who

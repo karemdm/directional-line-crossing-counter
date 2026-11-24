@@ -295,6 +295,17 @@ Run the tests with `pytest` (`pip install -e .[dev]`; no model or weights are ne
 - Face blurring is optional and **best-effort**: faces the face detector misses, and faces outside detected person boxes, are not blurred. Do not rely on it as the only anonymisation measure; review the output before sharing it and follow the privacy rules that apply where the video was recorded.
 - Processing at `imgsz 2048` is slow on CPU (see `--frame-step` and "Small or distant people").
 
+## Accuracy
+
+Counts are not ground truth. In a visual check of the Abbey Road run (one video, two
+reviewers, judgement from frame crops, no external ground truth), about 73 to 82
+percent of the counted crossings were real and about 94 to 97.5 percent of the real
+ones were counted. A second check of what the default `--min-cross-distance` removed on
+Shinjuku 3 min found about 5 false counts removed for each real crossing lost.
+Stationary people at a line are the main source of false counts; dense groups are
+undercounted; a rider can count twice (person and motorcycle) unless `--rider-overlap`
+is set. Details and limits: [evaluation](docs/how-it-works.md#evaluation-of-the-two-filters).
+
 ## Models & credits
 
 - [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics) detector and the BoT-SORT / ByteTrack tracker integration, AGPL-3.0.
