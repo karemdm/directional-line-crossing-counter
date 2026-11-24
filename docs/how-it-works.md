@@ -7,18 +7,30 @@ to tune the parameters.
 
 ```mermaid
 flowchart TD
-    A["Video frame"] --> B["YOLO detection<br/>(conf, imgsz, classes)"]
-    B --> C["BoT-SORT tracking<br/>(persistent IDs)"]
-    C --> D{"Face blur<br/>enabled?"}
+    A["Source video frame n<br/>(1-based)"] --> R{"--replay-tracks?"}
+    R -- no --> K{"frame-step:<br/>(n - 1) mod N = 0?"}
+    K -- no --> Z["Frame skipped<br/>(decoded, not processed or written)"]
+    K -- yes --> B["YOLO detection + tracker<br/>(conf, imgsz, classes, tracker)"]
+    B --> D{"--blur-faces?"}
     D -- yes --> E["Blur faces inside<br/>person boxes"]
-    D -- no --> F
-    E --> F["Anchor = bottom-center<br/>segment prev → curr"]
-    F --> G{"Strict segment<br/>intersection with a line?"}
+    D -- no --> T
+    E --> T["Tracks of the frame:<br/>id, class, confidence, box"]
+    T --> W["--save-tracks:<br/>write the frame to JSONL"]
+    R -- yes --> L["Load the tracks of frame n<br/>from the JSONL<br/>(frames not in the file are skipped)"]
+    L --> U["Anchor = bottom-center of the box<br/>segment prev anchor → current anchor"]
+    T --> U
+    U --> G{"Segment strictly crosses<br/>a counting line segment?"}
     G -- no --> J
-    G -- yes --> H["Side test (cross product)<br/>→ IN / OUT"]
-    H --> I["Count once per ID per line"]
-    I --> J["Draw boxes, lines, HUD"]
-    J --> K["Write frame to &lt;name&gt;_proc.mp4<br/>+ live preview"]
+    G -- yes --> M{"ID already counted<br/>on this line?"}
+    M -- yes --> J
+    M -- no --> H["Side of the current anchor<br/>(cross product) → IN or OUT"]
+    H --> Q{"Cooldown on and a recent<br/>same-direction crossing nearby?"}
+    Q -- yes --> P["Mark the ID as counted,<br/>do not add to the counts"]
+    Q -- no --> I["Add 1 to the line's<br/>IN or OUT for the class"]
+    P --> J
+    I --> J["Draw boxes, lines, badges<br/>and the side panel"]
+    J --> O["Write the frame to the output .mp4<br/>(fps / N) + live preview"]
+    O --> C["End: log summary,<br/>--save-counts JSON"]
 ```
 
 1. **Line definition.** The first frame is shown in a resizable OpenCV window.
@@ -32,13 +44,28 @@ flowchart TD
    `model.track(..., persist=True, tracker="botsort.yaml")`, restricted to the
    COCO classes person (0), car (2), motorcycle (3), bus (5) and truck (7).
 3. **Anchor point.** For every tracked box `(x1, y1, x2, y2)` the anchor is the
-   bottom-center point `((x1 + x2) / 2, y2)`, roughly where feet or wheels
+   bottom-center point `((x1 + x2) // 2, y2)`, roughly where feet or wheels
    touch the ground. The previous anchor of each track ID is stored, so every
-   frame gives a short trajectory segment `C = prev -> D = curr`.
+   frame gives a short trajectory segment `C = prev -> D = curr`. The
+   coordinates are integers: `x = (x1 + x2) // 2`.
 4. **Counting.** Each segment is tested against each counting line (below).
 5. **Output.** Annotated frames are written to disk immediately, so stopping
-   early (Q in the preview window, or Ctrl+C) keeps every frame processed so
-   far in a readable file.
+   early (Q in the preview window, closing it, or Ctrl+C) keeps every frame
+   processed so far in a readable file.
+6. **Frame step.** With `--frame-step N` only the frames 1, N+1, 2N+1, ... are
+   processed and written, and the output fps is `fps / N`. The tracker and the
+   crossing test only see these frames, so the trajectory step is N times
+   longer (the segment test still works; very fast objects may switch IDs) and
+   the tracker's `track_buffer` counts processed frames. `--cooldown-frames`
+   is measured in source frames.
+7. **Tracks and replay.** `--save-tracks` writes one JSON line per processed
+   frame (`frame` = 1-based source index, plus id, class, confidence and box
+   of every track). `--replay-tracks` skips the detector and the tracker, reads
+   those lines and runs the same counting and drawing code, so the counts are
+   identical to the original run (the frame step is inferred from the file).
+   Face blurring is not applied in a replay. Classes that never appeared in the
+   file are not pre-created, so their all-zero entries are missing from the
+   replay's counts report.
 
 ## Directional line crossing (IN / OUT)
 
@@ -99,6 +126,15 @@ counted at most once per line, whatever its class or direction later. The same
 ID can still be counted once on each of several lines. Counts are stored per
 line, per class name, per direction.
 
+### 5. Cooldown (optional)
+
+With `--cooldown-frames F` (> 0), a crossing is not added to the counts when
+another one in the same direction was counted on the same line at most `F`
+source frames earlier and within `--cooldown-px` pixels (distance between the
+two current anchors). This absorbs ID switches that re-create the same
+crossing. The suppressed ID is still marked as counted. Off by default because
+two real people crossing side by side can also be merged.
+
 ### Edge cases
 
 - The CCW test is strict, so a point exactly on the line is grouped with the
@@ -116,6 +152,12 @@ line, per class name, per direction.
   counted. A trajectory that only grazes an endpoint is ambiguous anyway.
 - If the tracker loses an object and gives it a new ID, the object can be
   counted again.
+- A track that disappears and returns with the same ID is compared with its
+  last known position, however old: if it reappears on the other side of a
+  line it is counted.
+- Lines of zero length never count; lines completely outside the frame never
+  count either (a warning is logged). Lines file coordinates are rounded to
+  whole pixels, line names must be unique and non-empty.
 - The class used for a count is the class in the frame where the crossing
   happens; class flicker between frames can move a count to another class.
 
