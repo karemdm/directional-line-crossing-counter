@@ -279,3 +279,29 @@ def test_counts_json_matches_documented_shape(tmp_path):
     write_tracks(tracks, walker([40, 70]))
     counter = process_video(video, tmp_path / "o.mp4", horizontal_line(), config(replay_tracks=str(tracks)))
     assert json.loads(json.dumps(counter.summary())) == {"Line_1": {"person": {"IN": 1, "OUT": 0}}}
+
+
+def test_rider_overlap_skips_a_person_on_a_motorcycle_in_replay(tmp_path):
+    video = make_video(tmp_path / "v.mp4")
+    tracks = tmp_path / "t.jsonl"
+    frames = {}
+    for i, y in enumerate([40, 50, 70, 80], start=1):
+        frames[i] = [(1, 0, "person", (70, y - 30, 90, y)), (2, 3, "motorcycle", (60, y - 18, 100, y + 5))]
+    write_tracks(tracks, frames)
+    plain = process_video(video, tmp_path / "a.mp4", horizontal_line(), config(replay_tracks=str(tracks)))
+    assert plain.lines[0].counts["person"] == {"IN": 1, "OUT": 0}
+    riders = process_video(video, tmp_path / "b.mp4", horizontal_line(),
+                           config(replay_tracks=str(tracks), rider_overlap=0.5))
+    assert riders.lines[0].counts["person"] == {"IN": 0, "OUT": 0}
+    assert riders.lines[0].counts["motorcycle"] == {"IN": 1, "OUT": 0}
+
+
+def test_min_cross_distance_in_replay_ignores_jitter_on_the_line(tmp_path):
+    video = make_video(tmp_path / "v.mp4")
+    tracks = tmp_path / "t.jsonl"
+    write_tracks(tracks, walker([58, 62, 59, 63, 58, 62], start=1))  # boxes 20 px high
+    plain = process_video(video, tmp_path / "a.mp4", horizontal_line(), config(replay_tracks=str(tracks)))
+    assert plain.lines[0].counts["person"]["IN"] == 1
+    hyst = process_video(video, tmp_path / "b.mp4", horizontal_line(),
+                         config(replay_tracks=str(tracks), min_cross_distance=0.5))
+    assert hyst.lines[0].counts["person"] == {"IN": 0, "OUT": 0}

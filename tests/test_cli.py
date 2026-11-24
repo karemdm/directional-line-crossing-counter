@@ -110,3 +110,22 @@ def test_max_track_gap_and_blur_padding_options() -> None:
     for argv in (["--max-track-gap", "-1"], ["--blur-padding", "-0.1"]):
         with pytest.raises(SystemExit):
             build_parser().parse_args(argv)
+
+
+def test_min_cross_distance_and_rider_overlap_options() -> None:
+    cfg = _config()
+    assert cfg.min_cross_distance == 0.0 and cfg.rider_overlap == 0.0
+    cfg = _config("--min-cross-distance", "0.1", "--rider-overlap", "0.5")
+    assert (cfg.min_cross_distance, cfg.rider_overlap) == (0.1, 0.5)
+    for argv in (["--min-cross-distance", "-0.1"], ["--rider-overlap", "1.5"], ["--rider-overlap", "-1"]):
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(argv)
+
+
+def test_rider_overlap_warns_without_a_two_wheeler_class() -> None:
+    from line_counter.cli import describe_ignored_options
+
+    # the default classes include 3 (motorcycle): no warning; without 1 and 3 there is one
+    assert not describe_ignored_options(_config("--rider-overlap", "0.5"))
+    assert describe_ignored_options(_config("--rider-overlap", "0.5", "--classes", "0", "2"))
+    assert not describe_ignored_options(_config("--classes", "0", "2"))

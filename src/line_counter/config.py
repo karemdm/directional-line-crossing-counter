@@ -17,6 +17,9 @@ DEFAULT_CLASS_NAMES: Dict[int, str] = {
 #: COCO class ID of "person" (face blurring only runs inside these boxes).
 PERSON_CLASS_ID = 0
 
+#: COCO class IDs of bicycle and motorcycle (used by ``rider_overlap``).
+TWO_WHEELER_CLASS_IDS = (1, 3)
+
 
 @dataclass
 class ProcessingConfig:
@@ -40,6 +43,12 @@ class ProcessingConfig:
         cooldown_px: Radius in pixels of the duplicate-crossing window.
         max_track_gap: Seconds; if > 0, a track that reappears after more than this
             time is not tested for a crossing on that step (0 = off).
+        min_cross_distance: Crossing hysteresis as a fraction of the box height (0 = off):
+            a crossing is counted only after the anchor is at least this far from the
+            line on the new side (and was this far on the old side).
+        rider_overlap: If > 0, a person crossing is not counted when the person box
+            overlaps a bicycle or motorcycle box by at least this fraction of the person
+            box in that frame (0 = off). The vehicle class must be tracked.
         frame_step: Process every Nth frame (1 = all); output fps is divided by N.
         display: Show the live preview window (press Q to stop).
         layout: ``side`` (counts in a panel next to the video) or ``overlay`` (HUD over the video).
@@ -63,6 +72,8 @@ class ProcessingConfig:
     cooldown_frames: int = 0
     cooldown_px: float = 40.0
     max_track_gap: float = 0.0
+    min_cross_distance: float = 0.0
+    rider_overlap: float = 0.0
     frame_step: int = 1
     layout: str = "side"
     save_tracks: Optional[str] = None

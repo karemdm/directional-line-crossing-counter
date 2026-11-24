@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 
-from line_counter.counter import IN, OUT, CountingLine, LineCounter
+from line_counter.counter import IN, OUT, CountingLine, LineCounter, riding_ids
 from line_counter.lines_io import lines_from_data, lines_to_data, load_lines, save_lines
 
 
@@ -192,3 +192,124 @@ def test_max_gap_keeps_short_gaps_and_is_off_by_default() -> None:
     other = LineCounter([_horizontal()], ["Person"])
     other.update(1, "Person", (5, -5), frame=10)
     assert other.update(1, "Person", (5, 5), frame=100000) == [("Line_1", IN)]
+
+
+# --- crossing hysteresis (min_cross_distance) -------------------------------
+
+def _hyst(min_dist: float = 10.0) -> tuple:
+    """Return a horizontal line (positive side = y > 0) and a counter with a 10 % band
+    for boxes 100 px high."""
+    line = CountingLine("L", (0, 0), (100, 0))
+    return line, LineCounter([line], ["Person"], min_cross_distance=min_dist / 100.0)
+
+
+def _walk(counter: LineCounter, track_id: int, ys, x: int = 50) -> list:
+    events = []
+    for frame, y in enumerate(ys, start=1):
+        events += counter.update(track_id, "Person", (x, y), frame, 100.0)
+    return events
+
+
+def test_hysteresis_ignores_jitter_around_the_line() -> None:
+    line, counter = _hyst()
+    assert _walk(counter, 1, [-3, 4, -2, 5, -4, 3, -1, 6]) == []
+    assert line.counts["Person"] == {IN: 0, OUT: 0}
+
+
+def test_hysteresis_counts_a_clean_crossing() -> None:
+    line, counter = _hyst()
+    assert _walk(counter, 1, [-30, -15, 2, 20]) == [("L", IN)]
+    assert line.counts["Person"] == {IN: 1, OUT: 0}
+
+
+def test_hysteresis_counts_out_direction() -> None:
+    _, counter = _hyst()
+    assert _walk(counter, 1, [30, 12, -3, -15]) == [("L", OUT)]
+
+
+def test_hysteresis_counts_a_slow_walker_when_the_distance_is_reached() -> None:
+    _, counter = _hyst()
+    ys = [-30, -12, -3, 1, 3, 5, 7, 9, 9, 11]  # needs many frames inside the band
+    assert _walk(counter, 1, ys[:-1]) == []
+    assert counter.update(1, "Person", (50, ys[-1]), 99, 100.0) == [("L", IN)]
+
+
+def test_hysteresis_needs_the_old_side_to_be_far_enough() -> None:
+    _, counter = _hyst()
+    # first seen inside the band, then moves away: no earlier confirmed side
+    assert _walk(counter, 1, [2, 4, 8, 20]) == []
+
+
+def test_hysteresis_jitter_over_the_line_then_return_is_not_a_crossing() -> None:
+    _, counter = _hyst()
+    assert _walk(counter, 1, [-30, -5, 4, 8, -6, -30]) == []
+
+
+def test_hysteresis_still_counts_a_later_real_crossing_after_jitter() -> None:
+    _, counter = _hyst()
+    assert _walk(counter, 1, [-30, -5, 6, -8, -30]) == []
+    assert _walk(counter, 1, [-30, 40]) == [("L", IN)]  # the same track really crosses later
+
+
+def test_hysteresis_does_not_count_a_walk_around_the_segment_end() -> None:
+    _, counter = _hyst()
+    # the infinite line is crossed, the drawn segment (x 0..100) is not
+    assert _walk(counter, 1, [-30, -12, 12, 30], x=150) == []
+
+
+def test_hysteresis_scales_with_the_box_height() -> None:
+    line = CountingLine("L", (0, 0), (100, 0))
+    counter = LineCounter([line], ["Person"], min_cross_distance=0.1)
+    # 20 px beyond the line is >= 10 % of a 100 px box, but < 10 % of a 300 px box
+    counter.update(1, "Person", (50, -30), 1, 100.0)
+    assert counter.update(1, "Person", (50, 20), 2, 100.0) == [("L", IN)]
+    counter.update(2, "Person", (50, -30), 1, 300.0)
+    assert counter.update(2, "Person", (50, 20), 2, 300.0) == []
+
+
+def test_hysteresis_off_keeps_the_original_behaviour() -> None:
+    line = CountingLine("L", (0, 0), (100, 0))
+    counter = LineCounter([line], ["Person"])
+    counter.update(1, "Person", (50, -1), 1, 100.0)
+    assert counter.update(1, "Person", (50, 1), 2, 100.0) == [("L", IN)]
+
+
+def test_hysteresis_does_not_count_a_jump_after_a_long_gap() -> None:
+    line = CountingLine("L", (0, 0), (100, 0))
+    counter = LineCounter([line], ["Person"], max_gap_frames=10, min_cross_distance=0.1)
+    counter.update(1, "Person", (50, -30), 1, 100.0)
+    assert counter.update(1, "Person", (50, 30), 100, 100.0) == []  # stale anchor: no hit
+
+
+def test_suppressed_crossing_is_consumed_but_not_counted() -> None:
+    line = CountingLine("L", (0, 0), (100, 0))
+    assert line.update(1, "Person", (50, -5), (50, 5), suppress=True) is None
+    assert 1 in line.counted_ids
+    assert line.counts == {}
+
+
+# --- riders ------------------------------------------------------------------
+
+def test_riding_ids_flags_a_person_on_a_two_wheeler() -> None:
+    tracks = [(1, 0, (100, 100, 140, 180)), (2, 3, (90, 140, 170, 200)), (3, 0, (400, 100, 440, 180))]
+    assert riding_ids(tracks, 0, (1, 3), 0.3) == {1}
+
+
+def test_riding_ids_needs_enough_overlap() -> None:
+    tracks = [(1, 0, (100, 100, 140, 180)), (2, 1, (130, 170, 200, 230))]
+    assert riding_ids(tracks, 0, (1, 3), 0.5) == set()
+    assert riding_ids(tracks, 0, (1, 3), 0.01) == {1}
+
+
+def test_riding_ids_ignores_cars_and_is_off_at_zero() -> None:
+    tracks = [(1, 0, (100, 100, 140, 180)), (2, 2, (90, 140, 170, 200)), (3, 3, (90, 140, 170, 200))]
+    assert riding_ids(tracks[:2], 0, (1, 3), 0.3) == set()
+    assert riding_ids(tracks, 0, (1, 3), 0.0) == set()
+
+
+def test_line_counter_suppress_flag_skips_the_count() -> None:
+    line = CountingLine("L", (0, 0), (100, 0))
+    counter = LineCounter([line], ["Person"])
+    counter.update(1, "Person", (50, -5), 1)
+    assert counter.update(1, "Person", (50, 5), 2, suppress=True) == []
+    assert line.counts["Person"] == {IN: 0, OUT: 0}
