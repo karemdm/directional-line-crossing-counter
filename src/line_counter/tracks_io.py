@@ -21,11 +21,22 @@ def write_frame_tracks(fh: IO[str], frame_idx: int, tracks: List[dict]) -> None:
     fh.flush()  # a stopped run still leaves a usable file
 
 
+def _check_track(t: dict) -> None:
+    """Raise if a track record lacks ``id``, ``cls``, ``name`` or a 4-number ``box``."""
+    int(t["id"]), int(t["cls"]), t["name"]
+    box = t["box"]
+    if len(box) != 4:
+        raise ValueError("box must have 4 values")
+    for v in box:
+        int(v)
+
+
 def load_tracks(path: Union[str, Path]) -> Dict[int, List[dict]]:
     """Load a tracks file into ``{frame_index: [track records]}``.
 
     Raises:
-        ValueError: If a line is not a valid frame record.
+        ValueError: If a line is not a valid frame record (missing or
+            malformed ``id``/``cls``/``name``/``box``) or a frame appears twice.
     """
     out: Dict[int, List[dict]] = {}
     with open(path, encoding="utf-8") as fh:
@@ -34,9 +45,15 @@ def load_tracks(path: Union[str, Path]) -> Dict[int, List[dict]]:
                 continue
             try:
                 rec = json.loads(raw)
-                out[int(rec["frame"])] = list(rec["tracks"])
+                frame = int(rec["frame"])
+                tracks = list(rec["tracks"])
+                for t in tracks:
+                    _check_track(t)
             except (ValueError, KeyError, TypeError) as exc:
-                raise ValueError(f"{path}:{n}: invalid track record ({exc})") from exc
+                raise ValueError(f"{path}:{n}: invalid track record ({exc!r})") from exc
+            if frame in out:
+                raise ValueError(f"{path}:{n}: duplicate frame {frame}")
+            out[frame] = tracks
     return out
 
 
