@@ -70,7 +70,9 @@ flowchart TD
 
 ## Directional line crossing (IN / OUT)
 
-The logic uses 2D analytic geometry on the anchor points.
+The logic uses 2D analytic geometry on the anchor points. Sections 1 to 4 describe the
+original rule (`--min-cross-distance 0`); with the default `0.05` the crossing
+hysteresis of section 7 is applied on top of it.
 
 ### 1. Strict segment intersection
 
@@ -166,7 +168,7 @@ Known limitation: a person standing near a line can be counted after a long
 loss because of a few pixels of box movement. No rule handles this.
 ### 7. Crossing hysteresis (optional, `--min-cross-distance`)
 
-By default a crossing is counted as soon as one step touches the line. A person
+Without it (`--min-cross-distance 0`) a crossing is counted as soon as one step touches the line. A person
 standing on a line has a bottom-centre anchor that jitters by a few pixels, so
 it can step across the line by chance and be counted. With
 `--min-cross-distance F` the counter keeps, per track and per line, the last
@@ -256,11 +258,14 @@ per-event verdicts). Over the whole videos, without verdicts, the filter removes
 about 6 to 7 percent of the counted crossings at 0.05 and 14 to 20 percent at 0.2
 (Shinjuku 90 s: 366 -> 344 at 0.05, 334 at 0.1, 314 at 0.2).
 
-**Decision.** No value removed most of the FP while keeping nearly all TP. 0.05 is
-the largest value that kept every TP and it removes 6 of 19 FP; beyond that real
-crossings are lost. The default therefore stays `0` (off) and the counts in
-`results/` are unchanged. `0.05` is a reasonable starting point for scenes where
-people stand on the line.
+**Decision.** No value removed most of the FP, so this is a conservative choice:
+0.05 is the largest value that kept every verified TP (79 of 79 on Abbey Road, all
+34 counted on Shinjuku Line_3 in the first 30 s) and it removes 6 of 19 FP; beyond
+that real crossings are lost. It is therefore the default, and `--min-cross-distance 0`
+restores the original rule. **The counts of the three shipped runs changed in this
+version** because of this default (the tracks are the same, only the counting rule
+differs); the before and after tables are in [results/README.md](../results/README.md).
+The removed crossings outside the audited parts were not judged by hand.
 
 **`--rider-overlap` on Abbey Road** (default classes, so motorcycles are the only
 two-wheelers tracked; bicycles are not):
@@ -307,7 +312,7 @@ faces outside detected person boxes are never searched.
 | `--model` | `weights/yolov8m.pt` | Smaller models (`yolov8n.pt`, `yolov8s.pt`) are faster, larger ones (`yolov8l.pt`, `yolov8x.pt`) may detect more. |
 | `--tracker` | `botsort.yaml` | `bytetrack.yaml` is a lighter alternative. Custom YAML files can tune track buffer and matching thresholds. |
 | `--classes` | `0 2 3 5 7` | Any COCO class IDs supported by the model. |
-| `--min-cross-distance` | `0` | Fraction of the box height; 0.05 is a starting point for people who stand on a line (see the evaluation above). |
+| `--min-cross-distance` | `0.05` | Fraction of the box height; 0 restores the original rule, larger values remove more jitter but also real crossings (see the evaluation above). |
 | `--rider-overlap` | `0` | Fraction of the person box; 0.5 is a starting point when riders are counted twice. Needs class 1 or 3 in `--classes`. |
 
 Tips:
