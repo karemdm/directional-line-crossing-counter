@@ -55,7 +55,7 @@ flowchart TD
 
 - **Anchor and crossing:** the anchor is the bottom-center of the box, `((x1 + x2) // 2, y2)`. The trajectory segment from the previous to the current anchor of the same ID must intersect the drawn segment (counter-clockwise orientation test). With `--frame-step N` the previous anchor is the one of the previous *processed* frame.
 - **Direction:** IN when the anchor moves from the negative to the positive side of the directed line `P1 -> P2` (2D cross product), OUT when it moves from the positive to the negative side. On screen (y pointing down) the positive side is the right-hand side when you walk from `P1` to `P2`; for a horizontal line clicked left to right, moving down is IN. The click order of a line therefore defines which way is IN.
-- **Deduplication:** each line remembers the track IDs it has already counted. The optional cooldown (`--cooldown-frames`, `--cooldown-px`) also drops a crossing in the same direction close in time and space to a previous one on the same line; the ID is still marked as counted.
+- **Deduplication:** each line remembers the track IDs it has already counted. The optional `--max-track-gap SECONDS` skips the crossing test for a track that comes back with the same ID after a longer absence. The optional cooldown (`--cooldown-frames`, `--cooldown-px`) also drops a crossing in the same direction close in time and space to a previous one on the same line; the ID is still marked as counted.
 
 See [docs/how-it-works.md](docs/how-it-works.md) for the formulas, edge cases and tuning tips.
 
@@ -136,8 +136,8 @@ line-counter            # or: python -m line_counter --gui
 ```
 
 1. **Select Input Video** (`.mp4`, `.avi`, `.mov`, `.mkv`).
-2. **Draw Lines on Frame**: left-click two points per line; press ENTER or ESC to finish.
-3. **Process and Save Video**: choose an output folder. Press **Q** in the preview window to stop early.
+2. **Draw Lines on Frame**: left-click two points per line; press **U** or **Backspace** to undo the last point or line; ENTER or ESC to finish. The window can be resized.
+3. **Process and Save Video**: choose an output folder. Processing runs in a background thread so the window stays responsive; there is no live preview in the launcher.
 
 CLI:
 
@@ -201,11 +201,13 @@ time and compare the counts on a short clip you have verified by eye.
 | `--frame-step` | `1` | Process every Nth frame; the output is written at fps/N so it plays at the original speed. |
 | `--cooldown-frames` | `0` (off) | Skip a crossing in the same direction within this many source frames and `--cooldown-px` of a previous one on the same line (absorbs ID switches). |
 | `--cooldown-px` | `40` | Radius in pixels used with `--cooldown-frames`. |
+| `--max-track-gap` | `0` (off) | Seconds. If a track reappears with the same ID after a longer absence, no crossing is tested for that step (its old position is too stale). Trade-off: fewer ID-reuse false crossings, but also missed real crossings of a person briefly lost. If used, set it at or above the tracker buffer in seconds (`track_buffer` x frame step / fps), not a few seconds; see [how it works](docs/how-it-works.md). |
 | `--layout` | `side` | `side` adds a dark panel with the counts to the right of the video (the output is wider); `overlay` draws the counts over the video. |
 | `--save-tracks` | none | Write the tracks of every processed frame (id, class, confidence, box) to a JSON Lines file. |
 | `--replay-tracks` | none | Skip detection and tracking and re-render from a file written by `--save-tracks` (frame step is taken from the file; face blur is not applied). |
 | `--save-counts` | none | Write the final per-line, per-class IN/OUT counts to a JSON file when processing ends (also with `--replay-tracks`). |
 | `--blur-faces` | off | Blur faces detected inside person boxes. |
+| `--blur-padding` | `0.15` | Margin added around each face box, as a fraction of its size (clipped to the person box). `0` = tight box. |
 | `--face-model` | `weights/face_yolov8m.pt` | Face detector weights for `--blur-faces`. |
 | `--no-display` | off | Disable the live preview (requires `--lines`). |
 | `--gui` | off | Open the Tkinter launcher. |
